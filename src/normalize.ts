@@ -1,3 +1,4 @@
+import { isHttpUrl } from './security.ts';
 import type { Appearance, RawItem, Story } from './types.ts';
 
 const TRACKING_PARAM_PREFIXES = ['utm_'];
@@ -62,7 +63,11 @@ export function detectLang(title: string): Story['lang'] {
 export function mergeIntoStories(items: RawItem[], percentileOf: (item: RawItem) => number | null): Story[] {
   const byKey = new Map<string, Story>();
   for (const item of items) {
-    if (!item.title || !item.url) continue;
+    // 外部APIの値は型を信用しない。文字列でないもの・http(s)でないURLは捨てる
+    if (typeof item.title !== 'string' || !item.title.trim() || !isHttpUrl(item.url)) continue;
+    item.tags = Array.isArray(item.tags) ? item.tags.filter((t): t is string => typeof t === 'string') : [];
+    if (typeof item.score !== 'number' || !Number.isFinite(item.score)) item.score = null;
+    if (item.discussionUrl !== undefined && !isHttpUrl(item.discussionUrl)) item.discussionUrl = undefined;
     const key = normalizeUrl(item.url);
     const appearance: Appearance = {
       source: item.source,

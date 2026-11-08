@@ -14,13 +14,7 @@
     <link rel="apple-touch-icon" href="/icon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/style.css" />
-    <script>
-      // テーマの初期適用(描画前に実行してちらつきを防ぐ)
-      try {
-        const t = localStorage.getItem('theme');
-        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-      } catch {}
-    </script>
+    <script src="/theme-init.js"></script>
     <script type="module" src="/app.js"></script>
   </head>
   <body>

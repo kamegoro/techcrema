@@ -13,6 +13,8 @@ const HOST_INTERVAL_MS: Record<string, number> = {
   'qiita.com': 2000,
 };
 const TIMEOUT_MS = 20_000;
+/** 異常に大きいレスポンスでメモリを使い切らないための上限(一番大きいOpenAIのRSSでも1MB弱) */
+export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
 const hostQueues = new Map<string, Promise<unknown>>();
 
@@ -45,14 +47,35 @@ export function politeFetch(url: string, headers: Record<string, string> = {}): 
   return current;
 }
 
+/** 本文を上限付きで読む。上限を超えたら途中で打ち切ってエラーにする */
+export async function readLimited(res: Response, limit = MAX_RESPONSE_BYTES): Promise<string> {
+  const declared = Number(res.headers.get('content-length'));
+  if (declared > limit) throw new Error(`レスポンスが大きすぎます (${declared} bytes)`);
+  if (!res.body) return '';
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      throw new Error(`レスポンスが大きすぎます (>${limit} bytes)`);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 export async function fetchJson<T>(url: string, headers: Record<string, string> = {}): Promise<T> {
   const res = await politeFetch(url, { Accept: 'application/json', ...headers });
-  return (await res.json()) as T;
+  return JSON.parse(await readLimited(res)) as T;
 }
 
 export async function fetchText(url: string): Promise<string> {
   const res = await politeFetch(url);
-  return await res.text();
+  return await readLimited(res);
 }
 
 export function githubHeaders(): Record<string, string> {

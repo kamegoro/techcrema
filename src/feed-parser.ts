@@ -50,6 +50,10 @@ function atomLink(link: unknown): string {
 }
 
 export function parseFeed(xml: string): FeedEntry[] {
+  // RSS/AtomにDTDは不要。独自エンティティの展開(Billion Laughs攻撃など)の余地をなくすため、DTD付きは受け付けない。
+  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) {
+    throw new Error('DTDを含むフィードは受け付けません');
+  }
   const doc = parser.parse(xml) as Record<string, any>;
 
   // RSS 2.0

@@ -129,7 +129,7 @@ async function refresh() {
     toast('更新しました');
   } catch (err) {
     data.collecting = false;
-    toast(`更新に失敗しました: ${err.message}`);
+    toast(err.message);
   }
   render();
 }
@@ -145,7 +145,7 @@ async function act(action, story) {
   if (action === 'unlater') s.later = s.later.filter((x) => x.key !== key);
   render();
   try {
-    const res = await api('/api/action', { action, key, story: action === 'later' ? story : undefined });
+    const res = await api('/api/action', { action, key });
     data.state = res.state;
     render();
   } catch (err) {

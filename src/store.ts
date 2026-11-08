@@ -1,4 +1,5 @@
 /** data/ 以下の読み書き。すべてローカルのJSONファイル。 */
+import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
@@ -123,6 +124,24 @@ export async function loadState(): Promise<UserState> {
 
 export function saveState(state: UserState): Promise<void> {
   return writeJson(path.join(DATA_DIR, STATE_FILE), state);
+}
+
+// --- LAN公開時のアクセストークン ---
+const TOKEN_FILE = 'access-token';
+
+/** 初回だけランダムに作り、以降は同じものを使う(スマホのホーム画面から開き直せるように) */
+export async function loadOrCreateAccessToken(): Promise<string> {
+  const file = path.join(DATA_DIR, TOKEN_FILE);
+  try {
+    const existing = (await readFile(file, 'utf8')).trim();
+    if (existing.length >= 32) return existing;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  }
+  const token = randomBytes(24).toString('base64url');
+  await mkdir(DATA_DIR, { recursive: true });
+  await writeFile(file, `${token}\n`, { mode: 0o600 });
+  return token;
 }
 
 // --- 日付 ---

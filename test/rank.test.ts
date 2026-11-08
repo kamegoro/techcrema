@@ -238,4 +238,15 @@ describe('buildSections', () => {
     const keys = sectionKeys(buildSections({ stories, layout, today, now, seen: {} }));
     assert.deepEqual(keys.forYou, []);
   });
+
+  it('ミュート用の予備を表示件数の後ろに足し、表示件数を limit に入れる', () => {
+    const stories = ['a', 'b', 'c', 'd'].map((k, i) => story({ key: k, interest: 1, pop: 0.9 - i * 0.1 }));
+    const sections = buildSections({ stories, layout, today, now, seen: {}, spare: 1 });
+    const forYou = sections.find((s) => s.id === 'forYou')!;
+    assert.equal(forYou.limit, 2);
+    assert.deepEqual(
+      forYou.stories.map((s) => s.key),
+      ['a', 'b', 'c'],
+    );
+  });
 });

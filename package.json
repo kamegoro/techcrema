@@ -1,6 +1,6 @@
 {
   "name": "tech-catchup",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "各プラットフォームで人気、かつ自分の関心に合う技術記事を毎日1ページにまとめる個人用リーダー",
   "type": "module",
@@ -9,8 +9,9 @@
   },
   "scripts": {
     "collect": "node src/collect.ts",
-    "start": "node src/server.ts",
-    "start:lan": "HOST=0.0.0.0 node src/server.ts",
+    "build": "node src/build.ts",
+    "update": "npm run collect && npm run build",
+    "preview": "node src/preview.ts",
     "test": "node --test 'test/**/*.test.ts'",
     "typecheck": "tsc",
     "check": "npm run typecheck && npm test"

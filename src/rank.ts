@@ -157,6 +157,11 @@ export interface BuildInput {
   now: Date;
   /** 前日までに表示した記事 */
   seen: Record<string, SeenEntry>;
+  /**
+   * 各セクションに、表示件数とは別に足しておく予備の件数。
+   * ミュートはブラウザ側で適用するので、ミュートで減った分をこの予備で埋める。
+   */
+  spare?: number;
 }
 
 /** パーセンタイルが最も高いプラットフォーム(セクション内の偏り制限に使う) */
@@ -231,8 +236,27 @@ export function groupOfficial(stories: readonly Story[]): Story[] {
   return [...byPublisher.values()];
 }
 
+/** 表示分(limit件)を選んだあと、残りから予備(spare件)を同じルールで選んで後ろに足す */
+function pickWithSpare(
+  ranked: readonly Story[],
+  limit: number,
+  spare: number,
+  maxRatio: number,
+  quota?: { count: number; test: (s: Story) => boolean },
+): Story[] {
+  const main = pickWithCaps(ranked, limit, maxRatio, quota);
+  if (spare <= 0) return main;
+  const rest = pickWithCaps(
+    ranked.filter((s) => !main.includes(s)),
+    spare,
+    maxRatio,
+  );
+  return [...main, ...rest];
+}
+
 export function buildSections(input: BuildInput): Section[] {
   const { layout, today, now, seen } = input;
+  const spare = input.spare ?? 0;
 
   // 前日以前に出した記事は除く。ただし人気度が大きく伸びたものは「再浮上」として1度だけ戻す。
   const visible: Story[] = [];
@@ -254,28 +278,30 @@ export function buildSections(input: BuildInput): Section[] {
   );
   const byPop = (a: Story, b: Story) => b.pop - a.pop || b.interest - a.interest || a.key.localeCompare(b.key);
 
-  const forYou = pickWithCaps(
+  const forYou = pickWithSpare(
     platform.filter((s) => s.interest > 0).sort(byPop),
     layout.for_you,
+    spare,
     layout.max_source_ratio,
     { count: layout.for_you_min_japanese, test: (s) => s.lang === 'ja' },
   );
 
-  const trending = pickWithCaps(
+  const trending = pickWithSpare(
     platform.filter((s) => s.interest === 0 && s.pop >= 0.97).sort(byPop),
     layout.trending,
+    spare,
     layout.max_source_ratio,
   );
 
   const discoverPool = platform
     .filter((s) => s.interest === 0 && s.pop >= 0.85 && !trending.includes(s))
     .sort((a, b) => a.key.localeCompare(b.key));
-  const discover = seededShuffle(discoverPool, today).slice(0, layout.discover);
+  const discover = seededShuffle(discoverPool, today).slice(0, layout.discover + spare);
 
   const repos = visible
     .filter((s) => isRepoOnly(s))
     .sort((a, b) => Number(b.interest > 0) - Number(a.interest > 0) || byPop(a, b))
-    .slice(0, layout.repos);
+    .slice(0, layout.repos + spare);
 
   return [
     {
@@ -283,30 +309,35 @@ export function buildSections(input: BuildInput): Section[] {
       title: '公式',
       description: `公式ブログとリリース(${layout.official_days}日以内の新着)`,
       stories: official,
+      limit: official.length,
     },
     {
       id: 'forYou',
       title: 'あなた向け',
       description: '関心に合う記事を人気順に',
       stories: forYou,
+      limit: layout.for_you,
     },
     {
       id: 'trending',
       title: '話題',
       description: '関心外だが各プラットフォームで上位3%',
       stories: trending,
+      limit: layout.trending,
     },
     {
       id: 'discover',
       title: '発見',
       description: '関心外から日替わりで',
       stories: discover,
+      limit: layout.discover,
     },
     {
       id: 'repos',
       title: '新しいリポジトリ',
       description: '直近7日に作られ、スターを集めているもの',
       stories: repos,
+      limit: layout.repos,
     },
   ];
 }

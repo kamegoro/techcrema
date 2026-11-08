@@ -5,7 +5,11 @@
  * - タイムアウトを設ける
  */
 
-const USER_AGENT = 'tech-catchup/0.1 (personal tech reader; github.com/kamegoro/tech-catchup)';
+/** Forkして使う人のリポジトリを名乗れるよう、Actions上では実行中のリポジトリ名を使う */
+const REPOSITORY = /^[\w.-]+\/[\w.-]+$/.test(process.env.GITHUB_REPOSITORY ?? '')
+  ? process.env.GITHUB_REPOSITORY
+  : 'kamegoro/tech-catchup';
+const USER_AGENT = `tech-catchup/0.2 (personal tech reader; github.com/${REPOSITORY})`;
 const DEFAULT_INTERVAL_MS = 1500;
 /** robots.txt の Crawl-delay などに合わせたホスト別の間隔 */
 const HOST_INTERVAL_MS: Record<string, number> = {

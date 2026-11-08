@@ -83,6 +83,11 @@ export interface Section {
   id: SectionId;
   title: string;
   description: string;
+  /**
+   * 表示する件数。stories はミュート用の予備を含めてこれより多いことがあり、
+   * ブラウザがミュートを除いたうえで先頭から limit 件を表示する。
+   */
+  limit: number;
   stories: Story[];
 }
 
@@ -113,13 +118,4 @@ export interface SourcesConfig {
   official_feeds: { name: string; url: string }[];
   github_releases: string[];
   layout: LayoutConfig;
-}
-
-/** ブラウザ側の操作で記録する状態 */
-export interface UserState {
-  liked: Record<string, string>;
-  read: Record<string, string>;
-  /** あとで読む。フィードが更新されても見られるようにStory自体を保存する */
-  later: Record<string, { savedAt: string; story: Story }>;
-  mute: { keywords: string[]; domains: string[] };
 }

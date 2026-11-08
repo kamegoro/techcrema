@@ -14,7 +14,10 @@ const SOURCE_LABELS = {
 };
 const LANG_LABELS = { ja: 'JP', en: 'EN', zh: 'ZH' };
 const RELEASE_LABELS = { major: 'メジャー', minor: 'マイナー', patch: 'パッチ' };
-const POLL_MS = 2500;
+const STATE_KEY = 'tc-state-v1';
+/** 既読・いいねの記録はこの件数まで(古いものから捨てる)。localStorageの容量を食い潰さないため */
+const MAX_KEYS = 3000;
+const MAX_LATER = 300;
 
 const ICONS = {
   like: '<path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/>',
@@ -23,9 +26,8 @@ const ICONS = {
   comment: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
 };
 
-/** @type {{feed: any, state: {liked: string[], read: string[], later: any[], mute: {keywords: string[], domains: string[]}}, collecting: boolean}} */
-let data = { feed: null, state: { liked: [], read: [], later: [], mute: { keywords: [], domains: [] } }, collecting: false };
-let pollTimer = null;
+/** @type {{feed: any, state: {liked: string[], read: string[], later: any[], mute: {keywords: string[], domains: string[]}}, loading: boolean}} */
+let data = { feed: null, state: loadState(), loading: false };
 let loadError = null;
 
 const $ = (id) => document.getElementById(id);
@@ -91,88 +93,125 @@ function formatDate(ymd) {
 }
 
 // ---------------------------------------------------------------------------
-// API
+// 状態(いいね・既読・あとで・ミュート)はこのブラウザの localStorage に保存する
 // ---------------------------------------------------------------------------
-async function api(path, body) {
-  const res = await fetch(path, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-  return json;
+function emptyUserState() {
+  return { liked: [], read: [], later: [], mute: { keywords: [], domains: [] } };
 }
 
-async function load() {
+function strings(v) {
+  return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.length > 0 && x.length <= 2048) : [];
+}
+
+/** 壊れた値や古い形式が入っていても動くように、型を確かめながら読む */
+function loadState() {
   try {
-    data = await api('/api/feed');
+    const raw = JSON.parse(localStorage.getItem(STATE_KEY) ?? 'null');
+    if (!raw || typeof raw !== 'object') return emptyUserState();
+    return {
+      liked: strings(raw.liked),
+      read: strings(raw.read),
+      later: Array.isArray(raw.later) ? raw.later.filter((x) => x && typeof x.key === 'string' && typeof x.title === 'string') : [],
+      mute: { keywords: strings(raw.mute?.keywords), domains: strings(raw.mute?.domains) },
+    };
+  } catch {
+    return emptyUserState();
+  }
+}
+
+function saveState() {
+  const s = data.state;
+  s.liked = s.liked.slice(-MAX_KEYS);
+  s.read = s.read.slice(-MAX_KEYS);
+  s.later = s.later.slice(0, MAX_LATER);
+  try {
+    localStorage.setItem(STATE_KEY, JSON.stringify(s));
+  } catch {
+    toast('このブラウザに保存できませんでした(プライベートモードでは保存されません)');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ミュートの判定(src/rank.ts の keywordMatcher / isMuted と同じルール)
+// ---------------------------------------------------------------------------
+function keywordMatcher(keyword) {
+  const k = keyword.trim().toLowerCase();
+  if (!k) return () => false;
+  if (/^[\x00-\x7f]+$/.test(k)) {
+    const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, 'i');
+    return (text) => re.test(text);
+  }
+  return (text) => text.toLowerCase().includes(k);
+}
+
+function isMuted(story, mute) {
+  const domain = (story.domain ?? '').toLowerCase();
+  if (mute.domains.some((d) => domain === d.toLowerCase() || domain.endsWith(`.${d.toLowerCase()}`))) return true;
+  const text = `${story.title} ${(story.tags ?? []).join(' ')}`;
+  return mute.keywords.some((k) => keywordMatcher(k)(text));
+}
+
+/** ミュートを除いたうえで、各セクションの表示件数(limit)だけ残す */
+function visibleSections(feed) {
+  const mute = data.state.mute;
+  return feed.sections.map((s) => ({
+    ...s,
+    stories: s.stories.filter((st) => !isMuted(st, mute)).slice(0, s.limit ?? s.stories.length),
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// フィードの読み込み(GitHub Actions が定期的に作った feed.json を読むだけ)
+// ---------------------------------------------------------------------------
+async function load({ manual = false } = {}) {
+  data.loading = true;
+  renderHeader();
+  const before = data.feed?.generatedAt;
+  try {
+    const res = await fetch('./feed.json', { cache: 'no-cache' });
+    if (!res.ok) throw new Error(res.status === 404 ? 'まだフィードが作られていません' : `HTTP ${res.status}`);
+    data.feed = await res.json();
     loadError = null;
+    if (manual) toast(data.feed.generatedAt === before ? '最新の状態です' : '更新しました');
   } catch (err) {
     loadError = err;
+    if (manual) toast(`読み込めませんでした: ${err.message}`);
   }
-  render();
-  schedulePoll();
-}
-
-function schedulePoll() {
-  clearTimeout(pollTimer);
-  if (data.collecting) pollTimer = setTimeout(load, POLL_MS);
-}
-
-async function refresh() {
-  if (data.collecting) return;
-  data.collecting = true;
-  renderHeader();
-  try {
-    data = await api('/api/collect', {});
-    toast('更新しました');
-  } catch (err) {
-    data.collecting = false;
-    toast(err.message);
-  }
+  data.loading = false;
   render();
 }
 
-async function act(action, story) {
+function act(action, story) {
   const key = story.key;
-  // 先に画面を変えてから送る(通信を待たない)
   const s = data.state;
-  const toggle = (list, on) => (on ? [...new Set([...list, key])] : list.filter((k) => k !== key));
+  const toggle = (list, on) => (on ? [...list.filter((k) => k !== key), key] : list.filter((k) => k !== key));
   if (action === 'like' || action === 'unlike') s.liked = toggle(s.liked, action === 'like');
   if (action === 'read') s.read = toggle(s.read, true);
+  // フィードが翌日に入れ替わっても見られるよう、記事そのものを保存する
   if (action === 'later') s.later = [story, ...s.later.filter((x) => x.key !== key)];
   if (action === 'unlater') s.later = s.later.filter((x) => x.key !== key);
+  saveState();
   render();
-  try {
-    const res = await api('/api/action', { action, key });
-    data.state = res.state;
-    render();
-  } catch (err) {
-    toast(`保存に失敗しました: ${err.message}`);
-    load();
-  }
 }
 
-async function mute(rules, { undo = true } = {}) {
-  try {
-    data = await api('/api/mute', rules);
-    render();
-    const label = [...rules.domains, ...rules.keywords].join('、');
-    toast(`「${label}」をミュートしました`, undo ? { label: '元に戻す', run: () => unmute(rules) } : undefined);
-  } catch (err) {
-    toast(`ミュートに失敗しました: ${err.message}`);
-  }
+function mute(rules, { undo = true } = {}) {
+  const m = data.state.mute;
+  m.domains = [...new Set([...m.domains, ...rules.domains])];
+  m.keywords = [...new Set([...m.keywords, ...rules.keywords])];
+  saveState();
+  render();
+  const label = [...rules.domains, ...rules.keywords].join('、');
+  toast(`「${label}」をミュートしました`, undo ? { label: '元に戻す', run: () => unmute(rules, { quiet: true }) } : undefined);
 }
 
-async function unmute(rules) {
-  try {
-    data = await api('/api/unmute', rules);
-    render();
-    toast('ミュートを解除しました(記事は次の更新から戻ります)');
-  } catch (err) {
-    toast(`解除に失敗しました: ${err.message}`);
-  }
+function unmute(rules, { quiet = false } = {}) {
+  const m = data.state.mute;
+  m.domains = m.domains.filter((d) => !rules.domains.includes(d));
+  m.keywords = m.keywords.filter((k) => !rules.keywords.includes(k));
+  saveState();
+  render();
+  if (!quiet) toast('ミュートを解除しました');
 }
 
 // ---------------------------------------------------------------------------
@@ -244,20 +283,19 @@ function currentTab() {
 }
 
 function renderHeader() {
-  const { feed, collecting } = data;
+  const { feed, loading } = data;
   const meta = $('meta');
-  if (collecting) meta.textContent = '収集中…';
-  else if (feed) {
+  if (feed) {
     const time = new Date(feed.generatedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     meta.textContent = `${formatDate(feed.date)} · ${time} 更新`;
   } else meta.textContent = '';
 
   const refreshBtn = $('refresh');
-  refreshBtn.disabled = collecting;
-  refreshBtn.classList.toggle('is-spinning', collecting);
-  refreshBtn.setAttribute('aria-busy', String(collecting));
+  refreshBtn.disabled = loading;
+  refreshBtn.classList.toggle('is-spinning', loading);
+  refreshBtn.setAttribute('aria-busy', String(loading));
 
-  const total = feed ? feed.sections.reduce((n, s) => n + s.stories.length, 0) : 0;
+  const total = feed ? visibleSections(feed).reduce((n, s) => n + s.stories.length, 0) : 0;
   $('count-today').textContent = total ? String(total) : '';
   $('count-later').textContent = data.state.later.length ? String(data.state.later.length) : '';
   const muteCount = data.state.mute.keywords.length + data.state.mute.domains.length;
@@ -394,23 +432,20 @@ function emptyState(title, text) {
 }
 
 function renderToday(main) {
-  const { feed, collecting } = data;
+  const { feed } = data;
   if (!feed) {
     if (loadError) {
-      main.append(emptyState('サーバーに接続できません', loadError.message));
+      main.append(emptyState('フィードを読み込めません', loadError.message));
       return;
     }
-    main.append(
-      emptyState(collecting ? '初めての収集中です' : 'まだ記事がありません', collecting ? '10〜20秒ほどで表示されます' : '右上の更新ボタンで収集します'),
-      h('ul', { class: 'cards', 'aria-hidden': 'true' }, [1, 2, 3].map(() => h('li', { class: 'skeleton' }))),
-    );
+    main.append(h('ul', { class: 'cards', 'aria-hidden': 'true' }, [1, 2, 3].map(() => h('li', { class: 'skeleton' }))));
     return;
   }
 
-  const sections = feed.sections.filter((s) => s.stories.length > 0);
+  const sections = visibleSections(feed).filter((s) => s.stories.length > 0);
   renderSectionNav(sections);
   if (sections.length === 0) {
-    main.append(emptyState('今日の新着はありません', 'しばらくしてから更新してみてください'));
+    main.append(emptyState('今日の新着はありません', '次の自動更新をお待ちください'));
   }
   for (const section of sections) {
     main.append(
@@ -475,7 +510,11 @@ function renderSettings(main) {
     );
   }
   const help = h('p', { class: 'help' });
-  help.append('関心のあるトピックやキーワードは ', h('code', {}, 'config/interests.yaml'), ' で編集できます。');
+  help.append(
+    'ミュート・いいね・あとで読むは、このブラウザにだけ保存されます(他の端末とは共有されません)。関心のあるトピックやキーワードは、リポジトリの ',
+    h('code', {}, 'config/interests.yaml'),
+    ' で編集できます。',
+  );
   section.append(help);
   main.append(section);
 }
@@ -546,7 +585,7 @@ function setupMuteSheet() {
 applyTheme(currentTheme());
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(currentTheme()));
 $('theme').addEventListener('click', cycleTheme);
-$('refresh').addEventListener('click', refresh);
+$('refresh').addEventListener('click', () => load({ manual: true }));
 window.addEventListener('hashchange', () => {
   render();
   window.scrollTo(0, 0);
@@ -554,6 +593,12 @@ window.addEventListener('hashchange', () => {
 // アプリに戻ってきたとき(通勤中に開き直したときなど)に最新を取る
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') load();
+});
+// 別のタブでミュートなどを変えたら反映する
+window.addEventListener('storage', (e) => {
+  if (e.key !== STATE_KEY) return;
+  data.state = loadState();
+  render();
 });
 setupMuteSheet();
 load();

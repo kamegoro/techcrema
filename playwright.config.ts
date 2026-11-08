@@ -16,7 +16,8 @@ export default defineConfig({
     // Fixed so dates, times and number formats render the same everywhere
     locale: 'en-US',
     timezoneId: 'UTC',
-    trace: 'retain-on-failure',
+    // DOM snapshots are enough to debug a failure; per-step screenshots at 3x slow WebKit on CI a lot
+    trace: { mode: 'retain-on-failure', screenshots: false },
   },
   // Phones first: that's where the page is read
   projects: [

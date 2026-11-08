@@ -20,7 +20,9 @@ export default defineConfig({
   },
   // Phones first: that's where the page is read
   projects: [
-    { name: 'iphone', use: { ...devices['iPhone 15'] } },
+    // WebKit on Linux paints in software; at the iPhone's 3x density that dominated CI time.
+    // The tests check roles and text, not pixels, so 1x loses nothing.
+    { name: 'iphone', use: { ...devices['iPhone 15'], deviceScaleFactor: 1 } },
     { name: 'android', use: { ...devices['Pixel 7'] } },
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
   ],

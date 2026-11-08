@@ -21,5 +21,5 @@ export async function build(): Promise<void> {
 
 if (import.meta.main) {
   await build();
-  console.log(`Wrote ${DIST_DIR} (check it with \`npm run preview\`)`);
+  console.log(`Wrote the site to ${DIST_DIR}`);
 }

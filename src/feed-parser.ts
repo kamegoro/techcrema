@@ -57,8 +57,12 @@ const categoryText = (c: unknown) => text(c) || text(child(c, '@_term'));
  * and the parser treats that text as plain characters.
  */
 export function hasDtd(xml: string): boolean {
-  const outsideText = xml.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '').replace(/<!--[\s\S]*?-->/g, '');
-  return /<!DOCTYPE|<!ENTITY/i.test(outsideText);
+  // One left-to-right pass, like the parser: whichever construct starts first wins, so a "<![CDATA["
+  // inside a comment (or "<!--" inside CDATA) can't hide a declaration that follows it
+  for (const [match] of xml.matchAll(/<!\[CDATA\[[\s\S]*?\]\]>|<!--[\s\S]*?-->|<!(?:DOCTYPE|ENTITY)/gi)) {
+    if (!match.startsWith('<![') && !match.startsWith('<!--')) return true;
+  }
+  return false;
 }
 
 function parse(xml: string): XmlNode {

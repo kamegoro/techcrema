@@ -70,6 +70,11 @@ describe('parseFeed', () => {
     expect(parseFeed(embedded).length).toBe(1);
     expect(hasDtd('<!-- <!DOCTYPE x> --><rss/>')).toBe(false);
     expect(hasDtd('<![CDATA[x]]><!DOCTYPE r [<!ENTITY a "b">]><rss/>')).toBe(true);
+    // A CDATA opener inside a comment, or a comment opener inside CDATA, must not hide what follows
+    expect(hasDtd('<!-- <![CDATA[ --><!DOCTYPE r [<!ENTITY a "b">]><rss>]]></rss>')).toBe(true);
+    expect(hasDtd('<rss><![CDATA[ <!-- ]]><!DOCTYPE r [<!ENTITY a "b">]> --></rss>')).toBe(true);
+    // An unterminated CDATA or comment hides nothing either
+    expect(hasDtd('<![CDATA[ <!DOCTYPE r>')).toBe(true);
   });
 });
 

@@ -155,7 +155,7 @@ describe('summarize', () => {
     title: 'TechCrema',
     officialDays: 3,
     sections: [{ id: 'forYou', limit: 1, stories: [story('a', ['rust']), story('b', ['go'])] }],
-    errors: [{ source: 'lobsters', message: 'HTTP 503 | down' }],
+    errors: [{ source: 'lobsters', message: 'HTTP 503 | down\\ |\nnext line' }],
   };
 
   it('reports sections, sources, failures and topics without matches', () => {
@@ -163,7 +163,8 @@ describe('summarize', () => {
     const md = summarize(config, feed, { hackernews: 30 });
     expect(md).toMatch(/\| forYou \| 1 \| 1 \|/);
     expect(md).toMatch(/\| hackernews \| 30 \|/);
-    expect(md).toMatch(/\| ❌ lobsters \| HTTP 503 \\\| down \|/);
+    // Pipes, backslashes and line breaks from a remote error message can't break out of the table cell
+    expect(md).toContain('| ❌ lobsters | HTTP 503 \\| down\\\\ \\| next line |');
     expect(md).toMatch(/\| rust \| 1 \|/);
     // "go" only appears in a spare story, which is not on the page
     expect(md).toMatch(/Topics with no stories today: go\./);

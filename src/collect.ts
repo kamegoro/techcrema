@@ -117,6 +117,9 @@ export async function collect(
   return feed;
 }
 
+/** Text from a source's error message, safe inside a Markdown table cell */
+const tableCell = (text: string) => text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\s+/g, ' ');
+
 /** Markdown for the Actions run page: what was fetched, what each section got, which topics matched */
 export function summarize(config: Config, feed: Feed, counts: Record<string, number>): string {
   const visible = feed.sections.map((s) => ({ ...s, stories: s.stories.slice(0, s.limit) }));
@@ -141,7 +144,7 @@ export function summarize(config: Config, feed: Feed, counts: Record<string, num
     '| Source | Items |',
     '|---|---:|',
     ...Object.entries(counts).map(([label, n]) => `| ${label} | ${n} |`),
-    ...feed.errors.map((e) => `| ❌ ${e.source} | ${e.message.replace(/\|/g, '\\|')} |`),
+    ...feed.errors.map((e) => `| ❌ ${e.source} | ${tableCell(e.message)} |`),
   ];
   if (topicHits.size > 0) {
     lines.push(

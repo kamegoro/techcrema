@@ -10,7 +10,7 @@ export default defineConfig({
   retries: 0,
   // The tests mostly wait on the browser, not the CPU, so CI runs two workers per core
   workers: process.env.CI ? '200%' : undefined,
-  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
+  reporter: process.env.CI ? [['list'], ['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: `http://127.0.0.1:${PORT}/techcrema/`,
     // Fixed so dates, times and number formats render the same everywhere

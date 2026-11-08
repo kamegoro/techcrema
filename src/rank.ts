@@ -1,23 +1,14 @@
 /**
- * Ranking logic. Pure functions only, no I/O, so everything here is unit-tested.
- *
- * The idea:
- * - Popularity (pop): where a story sits among its platform's recent stories, as a percentile.
- *   This puts 300 HN points and 300 Hatena bookmarks on the same scale.
- * - Interest: the highest weight among the configured topics the story matches.
- * - The two are never blended into one score; sections are picked by combining them.
+ * Ranking. Popularity is a percentile within each platform, so 300 HN points and 300 Hatena bookmarks
+ * land on the same scale. Popularity and interest are never blended into one score; sections combine them.
  */
 import type { InterestConfig, LayoutConfig, Section, SourceId, Story } from './types.ts';
-
-// ---------------------------------------------------------------------------
-// Popularity
-// ---------------------------------------------------------------------------
 
 /**
  * Where `score` sits within `window`, from 0 to 1. Ties count half (midrank).
  * e.g. the top story out of 60 → (59 + 0.5) / 60 ≈ 0.99
  */
-export function percentile(score: number, window: readonly number[]): number {
+export function percentile(score: number, window: readonly number[] = []): number {
   if (window.length === 0) return 0.5;
   let less = 0;
   let equal = 0;
@@ -42,23 +33,15 @@ export function popularity(story: Pick<Story, 'appearances'>): number {
   return Math.min(1, best + MULTI_PLATFORM_BONUS * (ranked.length - 1));
 }
 
-// ---------------------------------------------------------------------------
-// Interest and mutes
-// ---------------------------------------------------------------------------
-
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/**
- * Builds a keyword matcher.
- * ASCII keywords match whole words ("go" does not match "google");
- * other keywords (e.g. Japanese) match as substrings. Case-insensitive.
- */
+/** ASCII keywords match whole words ("go" does not match "google"); others, e.g. Japanese, match as substrings */
 export function keywordMatcher(keyword: string): (text: string) => boolean {
   const k = keyword.trim().toLowerCase();
   if (!k) return () => false;
-  if (/^[\x00-\x7f]+$/.test(k)) {
+  if (/^\p{ASCII}+$/u.test(k)) {
     const re = new RegExp(`(?<![a-z0-9])${escapeRegExp(k)}(?![a-z0-9])`, 'i');
     return (text) => re.test(text);
   }
@@ -102,10 +85,6 @@ export function isMuted(
   return mute.keywords.some((k) => keywordMatcher(k)(text));
 }
 
-// ---------------------------------------------------------------------------
-// Random numbers seeded by the date (the same order all day)
-// ---------------------------------------------------------------------------
-
 function hashString(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -136,10 +115,6 @@ export function seededShuffle<T>(items: readonly T[], seed: string): T[] {
   return out;
 }
 
-// ---------------------------------------------------------------------------
-// Building sections
-// ---------------------------------------------------------------------------
-
 const OFFICIAL_SOURCES: ReadonlySet<SourceId> = new Set(['official', 'github_release']);
 const RESURFACE_DELTA = 0.1;
 const PLATFORM_FRESH_DAYS = 4;
@@ -152,12 +127,10 @@ export interface SeenEntry {
 export interface BuildInput {
   stories: Story[];
   layout: LayoutConfig;
-  /** 'YYYY-MM-DD' in the configured time zone */
   today: string;
   now: Date;
   /** Language of the page; for_you_min_local keeps this many stories in it */
   language: Story['lang'];
-  /** Stories shown on earlier days */
   seen: Record<string, SeenEntry>;
   /**
    * Spare stories added to each section beyond its limit.
@@ -168,11 +141,7 @@ export interface BuildInput {
 
 /** The platform where the story ranks highest (used to cap any one platform's share of a section) */
 export function primarySource(story: Story): SourceId {
-  let best = story.appearances[0]!;
-  for (const a of story.appearances) {
-    if ((a.percentile ?? -1) > (best.percentile ?? -1)) best = a;
-  }
-  return best.source;
+  return story.appearances.reduce((best, a) => ((a.percentile ?? -1) > (best.percentile ?? -1) ? a : best)).source;
 }
 
 function isOfficial(story: Story): boolean {
@@ -237,17 +206,12 @@ export function pickWithCaps(
 /** Official section: keep the newest item per publisher and count the rest ("+N more") */
 export function groupOfficial(stories: readonly Story[]): Story[] {
   const sorted = [...stories].sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''));
-  const byPublisher = new Map<string, Story>();
+  const byPublisher = new Map<string, Story[]>();
   for (const s of sorted) {
     const key = s.publisher ?? s.domain;
-    const head = byPublisher.get(key);
-    if (!head) {
-      byPublisher.set(key, { ...s, groupedCount: 0 });
-    } else {
-      head.groupedCount = (head.groupedCount ?? 0) + 1;
-    }
+    byPublisher.set(key, [...(byPublisher.get(key) ?? []), s]);
   }
-  return [...byPublisher.values()];
+  return [...byPublisher.values()].map(([newest, ...rest]) => ({ ...(newest as Story), groupedCount: rest.length }));
 }
 
 /** Picks `limit` stories, then `spare` more from the rest by the same rules, appended after them */
@@ -283,13 +247,9 @@ export function buildSections(input: BuildInput): Section[] {
     }
   }
 
-  const official = groupOfficial(
-    visible.filter((s) => isOfficial(s) && ageDays(s, now) <= layout.official_days),
-  );
+  const official = groupOfficial(visible.filter((s) => isOfficial(s) && ageDays(s, now) <= layout.official_days));
 
-  const platform = visible.filter(
-    (s) => !isOfficial(s) && !isRepoOnly(s) && ageDays(s, now) <= PLATFORM_FRESH_DAYS,
-  );
+  const platform = visible.filter((s) => !isOfficial(s) && !isRepoOnly(s) && ageDays(s, now) <= PLATFORM_FRESH_DAYS);
   const byPop = (a: Story, b: Story) => b.pop - a.pop || b.interest - a.interest || a.key.localeCompare(b.key);
 
   const forYou = pickWithSpare(

@@ -18,17 +18,20 @@ npm install
 ### Everyday commands
 
 ```sh
-npm run check     # type check (tsc) + unit tests (node --test)
+npm run check     # Biome lint + type check + unit tests with the 100% coverage gate (what CI runs)
+npm run format    # apply Biome formatting and safe fixes
 npm run e2e       # browser tests (Playwright: iPhone/WebKit, Android/Chromium, desktop)
 npm run collect   # fetch real data using ./tech-catchup.yml
 npm run build     # assemble dist/
 npm run preview   # serve dist/ at http://localhost:8787
 ```
 
+Unit tests run on [Vitest](https://vitest.dev/) and must cover every line, branch, function and statement in `src/`. If a branch can't be reached, remove it rather than excluding it.
+
 Try a different configuration without editing `tech-catchup.yml`, through the same environment variables the action uses:
 
 ```sh
-TC_LANGUAGE=en TC_TOPICS='rust: [rust, cargo]' TECH_CATCHUP_DATA_DIR=/tmp/tc-data npm run collect
+TC_LANGUAGE=en TC_PRESETS=rust TECH_CATCHUP_DATA_DIR=/tmp/tc-data npm run collect
 TECH_CATCHUP_DATA_DIR=/tmp/tc-data npm run build && npm run preview
 ```
 
@@ -36,13 +39,15 @@ Please don't run `collect` in a tight loop: every run makes real requests to eve
 
 ### Browser tests
 
-`e2e/` runs the real page in WebKit and Chromium at phone and desktop sizes. Each test serves its own small `feed.json` (see `e2e/fixtures.ts`), so the tests never touch the network. Install the browsers once:
+`e2e/` runs the real page in WebKit and Chromium at phone and desktop sizes, without network access: each test serves its own `feed.json`. Install the browsers once with `npx playwright install chromium webkit`.
 
-```sh
-npx playwright install chromium webkit
-```
+The suite is layered like a Gauge project:
 
-Specs are split by purpose: `display.spec.ts` (what is shown), `interactions.spec.ts` (mute, read later, theme…) and `safety.spec.ts` (hostile feed content, corrupted storage). Name tests after what a reader sees or does, not after selectors.
+- `e2e/support/semantic.ts` finds elements only by ARIA role and accessible name, the way a screen reader does
+- `e2e/support/reader.ts` is the reader's vocabulary ("mute the site of a story", "Read later holds …"); each method is a step in the report
+- specs are split into what a page shows (`display.spec.ts`) and one file per feature
+
+Assert on the accessibility tree (`toMatchAriaSnapshot`, roles and names), never on CSS classes, and use only auto-waiting assertions. Retries are off: a flaky test is a bug.
 
 A weekly [smoke test](.github/workflows/smoke.yml) runs the action itself against the live sources, so a changed API fails loudly.
 
@@ -52,22 +57,24 @@ A weekly [smoke test](.github/workflows/smoke.yml) runs the action itself agains
 npm run demo -- dist docs
 ```
 
-`scripts/demo.mjs` serves the built site, drives Chrome with Playwright and captures 2x frames through the DevTools screencast, then ffmpeg turns them into `docs/demo.gif`. Keep the GIF under ~5 MB.
+`scripts/demo.ts` serves the built site, drives Chrome with Playwright and captures 2x frames through the DevTools screencast, then ffmpeg turns them into `docs/demo.gif`. Keep the GIF under ~5 MB.
 
 ## Project layout
 
 ```
 action.yml            The GitHub Action (composite): install → collect → build → deploy to Pages
-src/config.ts         Presets, YAML file and action inputs → one validated Config
+src/bin.ts, cli.ts    Command line entry: collect, build, preview
+src/config.ts         Language defaults, YAML file and action inputs → one validated Config
+src/presets.ts        Ready-made topics with official feeds
 src/collect.ts        The pipeline: fetch → merge → score → sections → feed.json
-src/sources/          One fetcher per source (platforms.ts) plus RSS feeds and GitHub releases (official.ts)
+src/sources/          One fetcher per source (platforms.ts), RSS feeds and GitHub releases (official.ts)
 src/normalize.ts      URL normalization, merging the same story across platforms, language detection
-src/rank.ts           Percentiles, interest matching, mutes, section building
+src/rank.ts           Percentiles, interest matching, mutes, sections
 src/http.ts           Polite fetch: per-host queue, delays, timeouts, size limits
 src/build.ts          web/ + feed.json → static site
-web/                  The page: vanilla JS, no framework, no build
-web/i18n.js           UI strings for every language
-test/                 node:test unit tests
+src/preview.ts        Static server for previews, E2E tests and the demo recorder
+web/                  The page: vanilla JS, no framework, no build step
+test/                 Vitest unit tests, one file per module
 e2e/                  Playwright browser tests
 ```
 
@@ -80,7 +87,7 @@ A source must have a **popularity signal** (points, likes, stars…) and an **of
 3. If it should be on by default for a language, add it to that language in `LANGUAGE_DEFAULTS` in `src/config.ts`.
 4. If the host asks for a crawl delay (check its `robots.txt`), add it to `HOST_INTERVAL_MS` in `src/http.ts`.
 5. Add a badge label in `SOURCE_LABELS` in `web/app.js` and a color in `web/style.css` (`.badge[data-source='…']`).
-6. Add a parsing test with a small fixture in `test/sources.test.ts`, and a row to the Sources table in [docs/configuration.md](docs/configuration.md#sources).
+6. Add a test with a small response fixture in `test/platforms.test.ts`, and a row to the Sources table in [docs/configuration.md](docs/configuration.md#sources).
 
 ## Adding a UI language
 
@@ -91,7 +98,7 @@ A source must have a **popularity signal** (points, likes, stars…) and an **of
 ## Pull requests
 
 - Open an issue first for anything bigger than a small fix, so we can agree on the approach.
-- Add or update tests with your change. Run `npm run check` and `npm run e2e` before pushing.
+- Add or update tests with your change; `npm run check` and `npm run e2e` must pass.
 - Write commit messages, code comments and docs in English.
 - Keep runtime dependencies to a minimum; the project currently has two.
 - If you change what the page looks like, include a screenshot in the PR (phone width and dark mode, please).

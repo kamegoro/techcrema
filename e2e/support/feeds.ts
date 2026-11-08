@@ -1,7 +1,8 @@
-import type { Page } from '@playwright/test';
-import type { Feed, SectionId, Story } from '../src/types.ts';
+/** Feed data for tests. Times are fixed relative to NOW, and the page clock is frozen at NOW. */
+import type { Feed, SectionId, Story } from '../../src/types.ts';
 
-const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+export const NOW = new Date('2026-11-08T09:00:00Z');
+const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3_600_000).toISOString();
 
 export function story(key: string, over: Partial<Story> = {}): Story {
   const domain = over.domain ?? `${key}.example.com`;
@@ -14,7 +15,13 @@ export function story(key: string, over: Partial<Story> = {}): Story {
     tags: [],
     publishedAt: hoursAgo(3),
     appearances: [
-      { source: 'hackernews', score: 120, scoreLabel: 'pt', percentile: 0.9, discussionUrl: `https://news.ycombinator.com/item?id=${key}` },
+      {
+        source: 'hackernews',
+        score: 120,
+        scoreLabel: 'pt',
+        percentile: 0.9,
+        discussionUrl: `https://news.ycombinator.com/item?id=${key}`,
+      },
     ],
     pop: 0.9,
     interest: 0,
@@ -28,13 +35,13 @@ const section = (id: SectionId, limit: number, stories: Story[]) => ({ id, limit
 
 /**
  * A small, fully known feed:
- * - "For you" shows 3 of 5 stories; two share the domain alpha.dev, so muting it must refill from spares
+ * - "For you" shows 3 of 5 stories; two come from alpha.dev, so muting it must refill from the spares
  * - "Trending" holds hostile input: an HTML-looking title and a javascript: URL
  */
 export function makeFeed(over: Partial<Feed> = {}): Feed {
   return {
     generatedAt: hoursAgo(1),
-    date: new Date().toISOString().slice(0, 10),
+    date: '2026-11-08',
     language: 'en',
     title: 'Tech Catchup',
     officialDays: 3,
@@ -52,7 +59,13 @@ export function makeFeed(over: Partial<Feed> = {}): Feed {
         }),
       ]),
       section('forYou', 3, [
-        story('a', { domain: 'alpha.dev', title: 'Rust ownership explained', topics: ['rust'], interest: 1, matchedKeywords: ['rust'] }),
+        story('a', {
+          domain: 'alpha.dev',
+          title: 'Rust ownership explained',
+          topics: ['rust'],
+          interest: 1,
+          matchedKeywords: ['rust'],
+        }),
         story('b', { domain: 'beta.dev', title: 'Writing a Rust CLI', topics: ['rust'], interest: 1 }),
         story('c', { domain: 'alpha.dev', title: 'Another alpha post', topics: ['rust'], interest: 1 }),
         story('d', { domain: 'gamma.dev', title: 'Cargo workspaces', topics: ['rust'], interest: 1 }),
@@ -75,13 +88,8 @@ export function makeFeed(over: Partial<Feed> = {}): Feed {
   };
 }
 
-/** Serves `feed` as feed.json and opens the page */
-export async function openWith(page: Page, feed: Feed | null, path = ''): Promise<void> {
-  await page.route('**/feed.json', (route) =>
-    feed ? route.fulfill({ json: feed, headers: { 'Cache-Control': 'no-store' } }) : route.fulfill({ status: 404, body: '' }),
-  );
-  await page.goto(`./${path}`);
-}
-
-/** Card titles of a section, for auto-waiting assertions such as toHaveText([...]) */
-export const cardTitles = (page: Page, sectionId: SectionId) => page.locator(`#section-${sectionId} .card-title`);
+/** Same feed with every section empty */
+export const emptyFeed = () => {
+  const feed = makeFeed();
+  return { ...feed, sections: feed.sections.map((s) => ({ ...s, stories: [] })) };
+};

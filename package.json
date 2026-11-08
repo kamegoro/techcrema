@@ -8,25 +8,29 @@
     "node": ">=24"
   },
   "scripts": {
-    "collect": "node src/collect.ts",
-    "build": "node src/build.ts",
+    "collect": "node src/bin.ts collect",
+    "build": "node src/bin.ts build",
     "update": "npm run collect && npm run build",
-    "preview": "node src/preview.ts",
-    "test": "node --test 'test/**/*.test.ts'",
+    "preview": "node src/bin.ts preview",
+    "test": "vitest run --coverage",
     "typecheck": "tsc",
-    "check": "npm run typecheck && npm test",
-    "demo": "node scripts/demo.mjs",
-    "e2e": "playwright test"
+    "check": "npm run lint && npm run typecheck && npm test",
+    "demo": "node scripts/demo.ts",
+    "e2e": "playwright test",
+    "lint": "biome check .",
+    "format": "biome check --write ."
   },
   "dependencies": {
     "fast-xml-parser": "^5.12.0",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
     "@playwright/test": "^1.65.0",
     "@types/node": "^26.6.6",
-    "playwright-core": "^1.65.0",
-    "typescript": "^7.0.2"
+    "@vitest/coverage-v8": "^5.1.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   },
   "license": "MIT",
   "repository": {

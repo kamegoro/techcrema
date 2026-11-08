@@ -1,9 +1,6 @@
-/**
- * The pipeline: fetch → merge by URL → popularity & interest → sections → feed.json
- * Run with `npm run collect`; the GitHub Action runs it on a schedule.
- */
+/** fetch → merge by URL → popularity & interest → sections → feed.json */
 import { appendFile } from 'node:fs/promises';
-import { loadConfig, type Config, type PlatformId } from './config.ts';
+import { type Config, loadConfig, type PlatformId } from './config.ts';
 import { mergeIntoStories } from './normalize.ts';
 import { buildSections, isMuted, percentile, popularity, scoreInterest } from './rank.ts';
 import { fetchGithubReleases, fetchOfficialFeed } from './sources/official.ts';
@@ -17,16 +14,7 @@ import {
   fetchQiita,
   fetchZenn,
 } from './sources/platforms.ts';
-import {
-  DATA_DIR,
-  loadScoreWindow,
-  loadSeen,
-  localDate,
-  saveFeed,
-  saveScoreSnapshot,
-  saveSeen,
-  type ScoreSnapshot,
-} from './store.ts';
+import { dataDir, loadScoreWindow, loadSeen, localDate, saveFeed, saveScoreSnapshot, saveSeen } from './store.ts';
 import type { Feed, RawItem } from './types.ts';
 
 /** Extra stories per section so that mutes applied in the browser can be backfilled */
@@ -59,14 +47,13 @@ function buildJobs(config: Config, now: Date): Job[] {
 export async function collect(
   config: Config,
   log: (msg: string) => void = () => undefined,
-  /** Filled with the number of items each source returned */
   counts: Record<string, number> = {},
 ): Promise<Feed> {
   const now = new Date();
   const today = localDate(now);
   const [seen, history] = await Promise.all([loadSeen(today), loadScoreWindow(today)]);
 
-  // 1. Fetch. Hosts run in parallel, requests to the same host one at a time; one failure doesn't stop the rest.
+  // One failing source must not stop the others
   const errors: Feed['errors'] = [];
   const results = await Promise.all(
     buildJobs(config, now).map(async (job) => {
@@ -85,26 +72,22 @@ export async function collect(
   );
   const items = results.flat();
 
-  // 2. Save today's scores and compute percentiles against the last 14 days plus today
-  const todayScores: ScoreSnapshot = {};
+  const windows = new Map<string, number[]>();
   for (const item of items) {
-    if (item.score !== null) (todayScores[item.source] ??= []).push(item.score);
+    if (item.score !== null) windows.set(item.source, [...(windows.get(item.source) ?? []), item.score]);
   }
-  await saveScoreSnapshot(today, todayScores);
-  const windows: ScoreSnapshot = {};
-  for (const source of new Set([...Object.keys(history), ...Object.keys(todayScores)])) {
-    windows[source] = [...(history[source] ?? []), ...(todayScores[source] ?? [])];
+  await saveScoreSnapshot(today, Object.fromEntries(windows));
+  for (const [source, scores] of Object.entries(history)) {
+    windows.set(source, [...scores, ...(windows.get(source) ?? [])]);
   }
 
-  // 3. Merge by URL, score popularity and interest, drop muted stories.
-  //    (Mutes added from the page live in the browser and are applied there.)
+  // Mutes added on the page live in the browser and are applied there
   const stories = mergeIntoStories(items, (item) =>
-    item.score === null ? null : percentile(item.score, windows[item.source] ?? []),
+    item.score === null ? null : percentile(item.score, windows.get(item.source)),
   )
     .map((s) => ({ ...s, pop: popularity(s), ...scoreInterest(s, config) }))
     .filter((s) => !isMuted(s, config.mute));
 
-  // 4. Sections
   const sections = buildSections({
     stories,
     layout: config.layout,
@@ -115,12 +98,9 @@ export async function collect(
     spare: SPARE_PER_SECTION,
   });
 
-  // 5. Remember what was shown so it isn't repeated on later days. Spares are usually not shown, so skip them.
+  // Spares are usually not shown, so only the visible stories count as seen
   for (const section of sections) {
-    for (const s of section.stories.slice(0, section.limit)) {
-      const prev = seen[s.key];
-      if (!prev || prev.date === today || s.resurfaced) seen[s.key] = { date: today, pop: s.pop };
-    }
+    for (const s of section.stories.slice(0, section.limit)) seen[s.key] = { date: today, pop: s.pop };
   }
   await saveSeen(seen);
 
@@ -142,7 +122,10 @@ export function summarize(config: Config, feed: Feed, counts: Record<string, num
   const visible = feed.sections.map((s) => ({ ...s, stories: s.stories.slice(0, s.limit) }));
   const topicHits = new Map<string, number>(Object.keys(config.topics).map((t) => [t, 0]));
   for (const s of visible.flatMap((sec) => sec.stories)) {
-    for (const t of s.topics) if (topicHits.has(t)) topicHits.set(t, topicHits.get(t)! + 1);
+    for (const t of s.topics) {
+      const hits = topicHits.get(t);
+      if (hits !== undefined) topicHits.set(t, hits + 1);
+    }
   }
   const lines = [
     `## ☕ Tech Catchup — ${feed.date}`,
@@ -151,7 +134,9 @@ export function summarize(config: Config, feed: Feed, counts: Record<string, num
     '',
     '| Section | Shown | Spare |',
     '|---|---:|---:|',
-    ...feed.sections.map((s) => `| ${s.id} | ${Math.min(s.limit, s.stories.length)} | ${Math.max(0, s.stories.length - s.limit)} |`),
+    ...feed.sections.map(
+      (s) => `| ${s.id} | ${Math.min(s.limit, s.stories.length)} | ${Math.max(0, s.stories.length - s.limit)} |`,
+    ),
     '',
     '| Source | Items |',
     '|---|---:|',
@@ -159,28 +144,40 @@ export function summarize(config: Config, feed: Feed, counts: Record<string, num
     ...feed.errors.map((e) => `| ❌ ${e.source} | ${e.message.replace(/\|/g, '\\|')} |`),
   ];
   if (topicHits.size > 0) {
-    lines.push('', '| Topic | Stories on today\'s page |', '|---|---:|', ...[...topicHits].map(([t, n]) => `| ${t} | ${n} |`));
+    lines.push(
+      '',
+      "| Topic | Stories on today's page |",
+      '|---|---:|',
+      ...[...topicHits].map(([t, n]) => `| ${t} | ${n} |`),
+    );
     const unused = [...topicHits].filter(([, n]) => n === 0).map(([t]) => t);
-    if (unused.length) lines.push('', `> Topics with no stories today: ${unused.join(', ')}. That is normal on quiet days; if it keeps happening, try broader keywords.`);
+    if (unused.length)
+      lines.push(
+        '',
+        `> Topics with no stories today: ${unused.join(', ')}. That is normal on quiet days; if it keeps happening, try broader keywords.`,
+      );
   } else {
     lines.push('', '> No `topics` configured, so "For you" is empty. Add a few to personalize the page.');
   }
   return `${lines.join('\n')}\n`;
 }
 
-if (import.meta.main) {
-  const config = await loadConfig();
+/** The `collect` command. Returns the exit code. */
+export async function runCollect(env: NodeJS.ProcessEnv, log: (message: string) => void): Promise<number> {
+  const config = await loadConfig(env);
   // "Today" follows the configured time zone, not the machine's
-  process.env.TZ = config.timezone;
+  env.TZ = config.timezone;
   const topics = Object.keys(config.topics);
-  console.log(`Collecting (${config.language}, ${config.timezone}; topics: ${topics.join(', ') || 'none'})…`);
+  log(`Collecting (${config.language}, ${config.timezone}; topics: ${topics.join(', ') || 'none'})…`);
   const counts: Record<string, number> = {};
-  const feed = await collect(config, (m) => console.log(m), counts);
-  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, summarize(config, feed, counts));
-  console.log(`\n${feed.date}: wrote ${DATA_DIR}/feed.json`);
-  for (const s of feed.sections) console.log(`  ${s.id}: ${Math.min(s.limit, s.stories.length)} (+${Math.max(0, s.stories.length - s.limit)} spare)`);
-  if (feed.errors.length) console.log(`  failed: ${feed.errors.map((e) => e.source).join(', ')}`);
-  if (topics.length === 0) console.log('\nTip: add `topics` to get a personalized "For you" section.');
-  // Used by the scheduled smoke test: fail loudly when a source breaks (an API change, for example)
-  if (process.env.TECH_CATCHUP_STRICT === '1' && feed.errors.length > 0) process.exit(1);
+  const feed = await collect(config, log, counts);
+  if (env.GITHUB_STEP_SUMMARY) await appendFile(env.GITHUB_STEP_SUMMARY, summarize(config, feed, counts));
+  log(`\n${feed.date}: wrote ${dataDir()}/feed.json`);
+  for (const s of feed.sections) {
+    log(`  ${s.id}: ${Math.min(s.limit, s.stories.length)} (+${Math.max(0, s.stories.length - s.limit)} spare)`);
+  }
+  if (feed.errors.length) log(`  failed: ${feed.errors.map((e) => e.source).join(', ')}`);
+  if (topics.length === 0) log('\nTip: add `topics` or `presets` to get a personalized "For you" section.');
+  // The scheduled smoke test sets this to fail loudly when a source breaks
+  return env.TECH_CATCHUP_STRICT === '1' && feed.errors.length > 0 ? 1 : 0;
 }

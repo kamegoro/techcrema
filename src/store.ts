@@ -1,18 +1,17 @@
-/** Reading and writing data/. Plain JSON files; on GitHub Actions the directory is carried over in the cache. */
-import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
+/** Plain JSON files; on GitHub Actions the directory is carried over between runs in the cache */
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { SeenEntry } from './rank.ts';
 import type { Feed } from './types.ts';
 
 export const ROOT = path.resolve(import.meta.dirname, '..');
-export const DATA_DIR = process.env.TECH_CATCHUP_DATA_DIR ?? path.join(ROOT, 'data');
+export const dataDir = () => process.env.TECH_CATCHUP_DATA_DIR ?? path.join(ROOT, 'data');
 
 const FEED_FILE = 'feed.json';
 const SEEN_FILE = 'seen.json';
 const SCORES_DIR = 'scores';
 /** How many days of scores the popularity percentile is computed over */
 export const SCORE_WINDOW_DAYS = 14;
-/** How long entries stay in seen.json */
 const SEEN_RETENTION_DAYS = 30;
 
 async function readJson<T>(file: string, fallback: T): Promise<T> {
@@ -32,21 +31,19 @@ async function writeJson(file: string, data: unknown): Promise<void> {
   await rename(tmp, file);
 }
 
-// --- Feed ---
 export function loadFeed(): Promise<Feed | null> {
-  return readJson<Feed | null>(path.join(DATA_DIR, FEED_FILE), null);
+  return readJson<Feed | null>(path.join(dataDir(), FEED_FILE), null);
 }
 
 export function saveFeed(feed: Feed): Promise<void> {
-  return writeJson(path.join(DATA_DIR, FEED_FILE), feed);
+  return writeJson(path.join(dataDir(), FEED_FILE), feed);
 }
 
-// --- Score history (for percentiles) ---
 export type ScoreSnapshot = Record<string, number[]>;
 
 /** Scores from the last SCORE_WINDOW_DAYS days, grouped by source (today excluded) */
 export async function loadScoreWindow(today: string): Promise<ScoreSnapshot> {
-  const dir = path.join(DATA_DIR, SCORES_DIR);
+  const dir = path.join(dataDir(), SCORES_DIR);
   let files: string[] = [];
   try {
     files = await readdir(dir);
@@ -60,12 +57,12 @@ export async function loadScoreWindow(today: string): Promise<ScoreSnapshot> {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
     if (date === today) continue;
     if (date < cutoff) {
-      await unlink(path.join(dir, f)).catch(() => undefined);
+      await rm(path.join(dir, f), { force: true });
       continue;
     }
     const snap = await readJson<ScoreSnapshot>(path.join(dir, f), {});
     for (const [source, scores] of Object.entries(snap)) {
-      (merged[source] ??= []).push(...scores);
+      merged[source] = [...(merged[source] ?? []), ...scores];
     }
   }
   return merged;
@@ -73,21 +70,19 @@ export async function loadScoreWindow(today: string): Promise<ScoreSnapshot> {
 
 /** Saves today's scores. Running collect again the same day overwrites them with the latest values. */
 export function saveScoreSnapshot(today: string, snapshot: ScoreSnapshot): Promise<void> {
-  return writeJson(path.join(DATA_DIR, SCORES_DIR, `${today}.json`), snapshot);
+  return writeJson(path.join(dataDir(), SCORES_DIR, `${today}.json`), snapshot);
 }
 
-// --- Stories already shown ---
 export async function loadSeen(today: string): Promise<Record<string, SeenEntry>> {
-  const seen = await readJson<Record<string, SeenEntry>>(path.join(DATA_DIR, SEEN_FILE), {});
+  const seen = await readJson<Record<string, SeenEntry>>(path.join(dataDir(), SEEN_FILE), {});
   const cutoff = shiftDate(today, -SEEN_RETENTION_DAYS);
   return Object.fromEntries(Object.entries(seen).filter(([, v]) => v.date >= cutoff));
 }
 
 export function saveSeen(seen: Record<string, SeenEntry>): Promise<void> {
-  return writeJson(path.join(DATA_DIR, SEEN_FILE), seen);
+  return writeJson(path.join(dataDir(), SEEN_FILE), seen);
 }
 
-// --- Dates ---
 /** 'YYYY-MM-DD' in the process time zone (set from the `timezone` option) */
 export function localDate(d: Date): string {
   const y = d.getFullYear();

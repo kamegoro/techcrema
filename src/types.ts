@@ -1,4 +1,3 @@
-/** One item as fetched from a source, before normalization */
 export interface RawItem {
   source: SourceId;
   title: string;
@@ -7,13 +6,10 @@ export interface RawItem {
   discussionUrl?: string;
   /** Raw popularity value (points, bookmarks, likes...). null for official sources. */
   score: number | null;
-  /** Unit of the popularity value, for display */
   scoreLabel?: string;
   tags: string[];
   publishedAt: string | null;
-  /** Publisher name for official items (Node.js, microsoft/playwright, ...) */
   publisher?: string;
-  /** For GitHub releases: what kind of version bump it is */
   releaseKind?: 'major' | 'minor' | 'patch' | 'other';
 }
 
@@ -29,8 +25,6 @@ export type SourceId =
   | 'official'
   | 'github_release';
 
-
-/** Items sharing a URL, merged into one card */
 export interface Story {
   key: string;
   url: string;
@@ -39,13 +33,11 @@ export interface Story {
   lang: 'ja' | 'en' | 'zh';
   tags: string[];
   publishedAt: string | null;
-  /** Where the story appeared (shown as badges) */
   appearances: Appearance[];
   /** Popularity 0-1 (highest per-platform percentile plus a cross-posting bonus) */
   pop: number;
   /** Interest 0-1 (highest weight among matched topics) */
   interest: number;
-  /** Names of matched topics */
   topics: string[];
   /** Matched keywords (offered as mute suggestions) */
   matchedKeywords: string[];
@@ -80,7 +72,6 @@ export interface Section {
 export interface Feed {
   generatedAt: string;
   date: string;
-  /** UI language */
   language: 'en' | 'ja';
   title: string;
   /** How many days back the official section looks (shown in its description) */
@@ -103,4 +94,3 @@ export interface LayoutConfig {
   repos: number;
   max_source_ratio: number;
 }
-

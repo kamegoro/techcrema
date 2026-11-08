@@ -1,5 +1,5 @@
 // Tech Catchup in the browser. Text from outside (titles etc.) only ever goes in via textContent, never innerHTML.
-import { formatDate, formatTime, getLanguage, setLanguage, t, timeAgo, translateDocument } from './i18n.js';
+import { formatDate, formatTime, setLanguage, t, timeAgo, translateDocument } from './i18n.js';
 
 const SOURCE_LABELS = {
   hackernews: 'HN',
@@ -27,14 +27,11 @@ const ICONS = {
 };
 
 /** @type {{feed: any, state: {liked: string[], read: string[], later: any[], mute: {keywords: string[], domains: string[]}}, loading: boolean}} */
-let data = { feed: null, state: loadState(), loading: false };
+const data = { feed: null, state: loadState(), loading: false };
 let loadError = null;
 
 const $ = (id) => document.getElementById(id);
 
-// ---------------------------------------------------------------------------
-// DOM helpers
-// ---------------------------------------------------------------------------
 function h(tag, props = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
@@ -76,9 +73,6 @@ function formatScore(n) {
   return String(n);
 }
 
-// ---------------------------------------------------------------------------
-// State (likes, read, later, mutes) lives in this browser's localStorage
-// ---------------------------------------------------------------------------
 function emptyUserState() {
   return { liked: [], read: [], later: [], mute: { keywords: [], domains: [] } };
 }
@@ -95,7 +89,9 @@ function loadState() {
     return {
       liked: strings(raw.liked),
       read: strings(raw.read),
-      later: Array.isArray(raw.later) ? raw.later.filter((x) => x && typeof x.key === 'string' && typeof x.title === 'string') : [],
+      later: Array.isArray(raw.later)
+        ? raw.later.filter((x) => x && typeof x.key === 'string' && typeof x.title === 'string')
+        : [],
       mute: { keywords: strings(raw.mute?.keywords), domains: strings(raw.mute?.domains) },
     };
   } catch {
@@ -115,13 +111,10 @@ function saveState() {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Mute matching (same rules as keywordMatcher / isMuted in src/rank.ts)
-// ---------------------------------------------------------------------------
 function keywordMatcher(keyword) {
   const k = keyword.trim().toLowerCase();
   if (!k) return () => false;
-  if (/^[\x00-\x7f]+$/.test(k)) {
+  if (/^\p{ASCII}+$/u.test(k)) {
     const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const re = new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, 'i');
     return (text) => re.test(text);
@@ -145,9 +138,6 @@ function visibleSections(feed) {
   }));
 }
 
-// ---------------------------------------------------------------------------
-// Loading the feed (just the feed.json that GitHub Actions publishes on schedule)
-// ---------------------------------------------------------------------------
 async function load({ manual = false } = {}) {
   data.loading = true;
   renderHeader();
@@ -191,7 +181,10 @@ function mute(rules, { undo = true } = {}) {
   saveState();
   render();
   const label = [...rules.domains, ...rules.keywords].join(t('list.separator'));
-  toast(t('mute.done', { label }), undo ? { label: t('mute.undo'), run: () => unmute(rules, { quiet: true }) } : undefined);
+  toast(
+    t('mute.done', { label }),
+    undo ? { label: t('mute.undo'), run: () => unmute(rules, { quiet: true }) } : undefined,
+  );
 }
 
 function unmute(rules, { quiet = false } = {}) {
@@ -203,9 +196,6 @@ function unmute(rules, { quiet = false } = {}) {
   if (!quiet) toast(t('mute.removed'));
 }
 
-// ---------------------------------------------------------------------------
-// Toast
-// ---------------------------------------------------------------------------
 let toastTimer = null;
 function toast(text, action) {
   const el = $('toast');
@@ -225,9 +215,6 @@ function toast(text, action) {
   toastTimer = setTimeout(() => (el.hidden = true), action ? 6000 : 2800);
 }
 
-// ---------------------------------------------------------------------------
-// Theme (cycles system → light → dark)
-// ---------------------------------------------------------------------------
 const THEME_ORDER = ['system', 'light', 'dark'];
 
 function currentTheme() {
@@ -262,9 +249,6 @@ function cycleTheme() {
   toast(t('theme.toast', { mode: t(`theme.${next}`) }));
 }
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
 function currentTab() {
   const tab = location.hash.replace('#', '');
   return tab === 'later' || tab === 'settings' ? tab : 'today';
@@ -279,7 +263,6 @@ function renderHeader() {
 
   const refreshBtn = $('refresh');
   refreshBtn.disabled = loading;
-  refreshBtn.classList.toggle('is-spinning', loading);
   refreshBtn.setAttribute('aria-busy', String(loading));
 
   const total = feed ? visibleSections(feed).reduce((n, s) => n + s.stories.length, 0) : 0;
@@ -299,7 +282,12 @@ function renderSectionNav(sections) {
   const nav = $('section-nav');
   nav.replaceChildren(
     ...sections.map((s) =>
-      h('a', { class: 'chip', href: `#section-${s.id}`, onclick: (e) => jumpTo(e, s.id) }, t(`section.${s.id}`), h('span', { class: 'chip-count' }, s.stories.length)),
+      h(
+        'a',
+        { class: 'chip', href: `#section-${s.id}`, onclick: (e) => jumpTo(e, s.id) },
+        t(`section.${s.id}`),
+        h('span', { class: 'chip-count' }, s.stories.length),
+      ),
     ),
   );
 }
@@ -313,7 +301,8 @@ function jumpTo(event, id) {
 }
 
 function sourceBadge(a) {
-  const label = a.source === 'hatena' || a.source === 'official' ? t(`source.${a.source}`) : (SOURCE_LABELS[a.source] ?? a.source);
+  const label =
+    a.source === 'hatena' || a.source === 'official' ? t(`source.${a.source}`) : (SOURCE_LABELS[a.source] ?? a.source);
   const children = [h('span', { class: 'badge-dot' }), label];
   if (a.score !== null && a.score !== undefined) {
     children.push(h('span', { class: 'badge-score' }, formatScore(a.score)));
@@ -339,7 +328,8 @@ function sourceBadge(a) {
   return h('span', { class: 'badge', dataset: { source: a.source } }, ...children);
 }
 
-function card(story) {
+/** One story as an <article> named by its title. idPrefix keeps the heading ids unique on the page. */
+function card(story, idPrefix) {
   const s = data.state;
   const liked = s.liked.includes(story.key);
   const later = s.later.some((x) => x.key === story.key);
@@ -354,24 +344,41 @@ function card(story) {
       ? h('span', { class: 'badge badge-publisher' }, story.publisher)
       : null,
     ['major', 'minor', 'patch'].includes(story.releaseKind)
-      ? h('span', { class: `badge${story.releaseKind === 'major' ? ' badge-accent' : ''}` }, t(`release.${story.releaseKind}`))
+      ? h(
+          'span',
+          { class: `badge${story.releaseKind === 'major' ? ' badge-accent' : ''}` },
+          t(`release.${story.releaseKind}`),
+        )
       : null,
     story.groupedCount ? h('span', { class: 'badge' }, t('grouped', { n: story.groupedCount })) : null,
     story.resurfaced ? h('span', { class: 'badge badge-accent' }, t('resurfaced')) : null,
     h('span', { class: 'badge badge-lang', title: t('language') }, LANG_LABELS[story.lang] ?? story.lang),
   );
 
+  const titleId = `${idPrefix}-title`;
   const title = h(
     'h3',
-    { class: 'card-title' },
+    { class: 'card-title', id: titleId },
     href
-      ? h('a', { class: 'card-link', href, target: '_blank', rel: 'noopener noreferrer', onclick: () => !read && act('read', story) }, story.title)
+      ? h(
+          'a',
+          {
+            class: 'card-link',
+            href,
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            onclick: () => !read && act('read', story),
+          },
+          story.title,
+        )
       : story.title,
   );
 
   const meta = h(
     'div',
     { class: 'card-meta' },
+    // Read state is shown by dimming; say it in words too, for screen readers
+    read ? h('span', { class: 'visually-hidden' }, t('read')) : null,
     h('span', { class: 'card-domain' }, story.domain),
     story.publishedAt ? h('time', { datetime: story.publishedAt }, timeAgo(story.publishedAt)) : null,
     story.topics.map((t) => h('span', { class: 'topic' }, `#${t}`)),
@@ -406,12 +413,28 @@ function card(story) {
     ),
     h(
       'button',
-      { class: 'action', type: 'button', 'aria-label': t('mute'), title: t('mute'), onclick: () => openMuteSheet(story) },
+      {
+        class: 'action',
+        type: 'button',
+        'aria-label': t('mute'),
+        title: t('mute'),
+        onclick: () => openMuteSheet(story),
+      },
       icon('mute'),
     ),
   );
 
-  return h('li', { class: `card${read ? ' is-read' : ''}` }, top, title, h('div', { class: 'card-bottom' }, meta, actions));
+  return h(
+    'li',
+    {},
+    h(
+      'article',
+      { class: `card${read ? ' is-read' : ''}`, 'aria-labelledby': titleId },
+      top,
+      title,
+      h('div', { class: 'card-bottom' }, meta, actions),
+    ),
+  );
 }
 
 function emptyState(title, text) {
@@ -425,7 +448,13 @@ function renderToday(main) {
       main.append(emptyState(t('load.failedTitle'), loadError.message));
       return;
     }
-    main.append(h('ul', { class: 'cards', 'aria-hidden': 'true' }, [1, 2, 3].map(() => h('li', { class: 'skeleton' }))));
+    main.append(
+      h(
+        'ul',
+        { class: 'cards', 'aria-hidden': 'true' },
+        [1, 2, 3].map(() => h('li', { class: 'skeleton' })),
+      ),
+    );
     return;
   }
 
@@ -446,12 +475,22 @@ function renderToday(main) {
           h('p', { class: 'section-description' }, t(`section.${section.id}.desc`, { days: feed.officialDays ?? 3 })),
         ),
         // Official and New repos only need a glance at the headline, so they use a compact layout
-        h('ul', { class: `cards${section.id === 'official' || section.id === 'repos' ? ' cards-compact' : ''}` }, section.stories.map(card)),
+        h(
+          'ul',
+          // role="list": Safari drops list semantics from lists styled with list-style: none
+          {
+            class: `cards${section.id === 'official' || section.id === 'repos' ? ' cards-compact' : ''}`,
+            role: 'list',
+          },
+          section.stories.map((story, i) => card(story, `${section.id}-${i}`)),
+        ),
       ),
     );
   }
   if (feed.errors.length) {
-    main.append(h('p', { class: 'notice' }, t('errors', { sources: feed.errors.map((e) => e.source).join(t('list.separator')) })));
+    main.append(
+      h('p', { class: 'notice' }, t('errors', { sources: feed.errors.map((e) => e.source).join(t('list.separator')) })),
+    );
   }
 }
 
@@ -462,32 +501,57 @@ function renderLater(main) {
     main.append(emptyState(t('empty.later'), t('empty.later.text')));
     return;
   }
-  main.append(h('section', { class: 'section' }, h('ul', { class: 'cards' }, list.map(card))));
+  main.append(
+    h(
+      'section',
+      { class: 'section', 'aria-label': t('tab.later') },
+      h(
+        'ul',
+        { class: 'cards', role: 'list' },
+        list.map((story, i) => card(story, `later-${i}`)),
+      ),
+    ),
+  );
 }
 
 function renderSettings(main) {
   $('section-nav').replaceChildren();
   const { keywords, domains } = data.state.mute;
-  const items = [...domains.map((v) => ({ kind: 'domain', value: v })), ...keywords.map((v) => ({ kind: 'keyword', value: v }))];
-  const section = h('section', { class: 'section' });
+  const items = [
+    ...domains.map((v) => ({ kind: 'domain', value: v })),
+    ...keywords.map((v) => ({ kind: 'keyword', value: v })),
+  ];
+  const section = h('section', { class: 'section', 'aria-label': t('tab.mute') });
   if (items.length === 0) {
     section.append(emptyState(t('empty.mute'), t('empty.mute.text')));
   } else {
     section.append(
       h(
         'ul',
-        { class: 'mute-list' },
+        { class: 'mute-list', role: 'list' },
         items.map((item) =>
           h(
             'li',
             { class: 'mute-item' },
-            h('span', { class: 'mute-item-label' }, h('span', { class: 'mute-kind' }, t(`mute.kind.${item.kind}`)), item.value),
+            h(
+              'span',
+              { class: 'mute-item-label' },
+              h('span', { class: 'mute-kind' }, t(`mute.kind.${item.kind}`)),
+              item.value,
+            ),
             h(
               'button',
               {
                 class: 'button button-small',
                 type: 'button',
-                onclick: () => unmute(item.kind === 'domain' ? { domains: [item.value], keywords: [] } : { keywords: [item.value], domains: [] }),
+                // Several rows have the same visible "Unmute"; the name says which one
+                'aria-label': t('mute.unmuteItem', { value: item.value }),
+                onclick: () =>
+                  unmute(
+                    item.kind === 'domain'
+                      ? { domains: [item.value], keywords: [] }
+                      : { keywords: [item.value], domains: [] },
+                  ),
               },
               t('mute.unmute'),
             ),
@@ -511,15 +575,13 @@ function render() {
   else renderToday(main);
 }
 
-// ---------------------------------------------------------------------------
-// Mute sheet
-// ---------------------------------------------------------------------------
 function openMuteSheet(story) {
   const dialog = $('mute-sheet');
   $('mute-story').textContent = story.title;
   $('mute-custom').value = '';
   const options = [];
-  if (story.domain) options.push({ kind: 'domain', value: story.domain, label: t('mute.option.domain', { value: story.domain }) });
+  if (story.domain)
+    options.push({ kind: 'domain', value: story.domain, label: t('mute.option.domain', { value: story.domain }) });
   const keywords = [...new Set([...story.matchedKeywords, ...story.tags])].slice(0, 8);
   for (const k of keywords) options.push({ kind: 'keyword', value: k, label: t('mute.option.keyword', { value: k }) });
 
@@ -561,9 +623,6 @@ function setupMuteSheet() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Startup
-// ---------------------------------------------------------------------------
 translateDocument();
 applyTheme(currentTheme());
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(currentTheme()));

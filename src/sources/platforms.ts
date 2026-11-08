@@ -1,16 +1,13 @@
-/**
- * Sources with a popularity signal. Official APIs, RSS and public JSON only.
- * Each fetcher may fail on its own; the others carry on.
- */
-import { fetchJson, fetchText, githubHeaders } from '../http.ts';
+/** Sources with a popularity signal. Official APIs, RSS and public JSON only; no HTML scraping. */
+
 import { parseFeed } from '../feed-parser.ts';
+import { fetchJson, fetchText, githubHeaders } from '../http.ts';
 import type { RawItem } from '../types.ts';
 
 function isoDaysAgo(days: number, now: Date): string {
   return new Date(now.getTime() - days * 86_400_000).toISOString();
 }
 
-// --- Hacker News (Algolia API: front page) ---
 interface HnHit {
   objectID: string;
   title: string;
@@ -40,7 +37,6 @@ export async function fetchHackerNews(): Promise<RawItem[]> {
   });
 }
 
-// --- Hatena Bookmark: popular entries in Technology (RSS) ---
 /** Hatena's own "Technology" category label; every entry in this feed has it, so it's not a useful tag */
 const HATENA_TECH_CATEGORY = '\u30c6\u30af\u30ce\u30ed\u30b8\u30fc';
 
@@ -64,7 +60,6 @@ export async function fetchHatena(): Promise<RawItem[]> {
   }));
 }
 
-// --- Zenn (public JSON: daily trend) ---
 interface ZennArticle {
   title: string;
   path: string;
@@ -74,9 +69,7 @@ interface ZennArticle {
 }
 
 export async function fetchZenn(): Promise<RawItem[]> {
-  const data = await fetchJson<{ articles: ZennArticle[] }>(
-    'https://zenn.dev/api/articles?order=daily&count=60',
-  );
+  const data = await fetchJson<{ articles: ZennArticle[] }>('https://zenn.dev/api/articles?order=daily&count=60');
   return data.articles.map((a) => ({
     source: 'zenn',
     title: a.title,
@@ -88,7 +81,6 @@ export async function fetchZenn(): Promise<RawItem[]> {
   }));
 }
 
-// --- Qiita (API v2: articles from the last 3 days that people saved) ---
 interface QiitaItem {
   title: string;
   url: string;
@@ -116,7 +108,6 @@ export async function fetchQiita(now: Date): Promise<RawItem[]> {
   }));
 }
 
-// --- dev.to (Forem API: top of the last day) ---
 interface DevtoArticle {
   title: string;
   url: string;
@@ -138,7 +129,6 @@ export async function fetchDevto(): Promise<RawItem[]> {
   }));
 }
 
-// --- Lobsters (hottest.json) ---
 interface LobstersStory {
   title: string;
   url: string;
@@ -162,7 +152,6 @@ export async function fetchLobsters(): Promise<RawItem[]> {
   }));
 }
 
-// --- Hugging Face Daily Papers ---
 interface HfDailyPaper {
   title: string;
   publishedAt: string;
@@ -182,7 +171,6 @@ export async function fetchHuggingFace(): Promise<RawItem[]> {
   }));
 }
 
-// --- GitHub: most-starred repositories created in the last 7 days (Search API) ---
 interface GithubRepo {
   full_name: string;
   html_url: string;

@@ -55,7 +55,7 @@ Tech Catchup shows the overlap: **popular right now _and_ about your topics**, p
 
 Everything goes under `with:` in the workflow above.
 
-**Your own topics** — a story whose title or tags contain a keyword lands in *For you*:
+**Your own topics** — a story whose title or tags contain a keyword lands in _For you_:
 
 ```yaml
 topics: |

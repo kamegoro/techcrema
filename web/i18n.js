@@ -3,19 +3,19 @@
 const MESSAGES = {
   en: {
     'meta.description': 'Trending tech stories that match your interests, on one page a day',
-    'skip': 'Skip to content',
-    'reload': 'Reload',
+    skip: 'Skip to content',
+    reload: 'Reload',
     'theme.toggle': 'Toggle theme',
     'theme.label': 'Theme: {mode} (tap to change)',
     'theme.toast': 'Theme: {mode}',
     'theme.system': 'System',
     'theme.light': 'Light',
     'theme.dark': 'Dark',
-    'tabs': 'Views',
+    tabs: 'Views',
     'tab.today': 'Today',
     'tab.later': 'Later',
     'tab.mute': 'Muted',
-    'sections': 'Sections',
+    sections: 'Sections',
     'section.official': 'Official',
     'section.official.desc': 'Blogs and releases from the last {days} days',
     'section.forYou': 'For you',
@@ -31,16 +31,17 @@ const MESSAGES = {
     'release.major': 'Major',
     'release.minor': 'Minor',
     'release.patch': 'Patch',
-    'updated': '{date} · updated {time}',
-    'grouped': '+{n} more',
-    'resurfaced': 'Back again',
-    'language': 'Language',
-    'discussion': 'Discussion on {source} ({score})',
-    'like': 'Like',
-    'unlike': 'Remove like',
-    'later': 'Read later',
-    'unlater': 'Remove from Read later',
-    'mute': 'Mute',
+    updated: '{date} · updated {time}',
+    grouped: '+{n} more',
+    resurfaced: 'Back again',
+    read: 'Read',
+    language: 'Language',
+    discussion: 'Discussion on {source} ({score})',
+    like: 'Like',
+    unlike: 'Remove like',
+    later: 'Read later',
+    unlater: 'Remove from Read later',
+    mute: 'Mute',
     'load.missing': 'The feed has not been generated yet',
     'load.failed': 'Could not load: {message}',
     'load.failedTitle': 'Could not load the feed',
@@ -52,12 +53,13 @@ const MESSAGES = {
     'empty.later.text': 'Use the bookmark button on a card',
     'empty.mute': 'Nothing muted',
     'empty.mute.text': 'Use the mute button on a card',
-    'errors': 'Could not fetch: {sources}',
+    errors: 'Could not fetch: {sources}',
     'mute.kind.domain': 'Site',
     'mute.kind.keyword': 'Keyword',
     'mute.option.domain': 'Site: {value}',
     'mute.option.keyword': 'Keyword: {value}',
     'mute.unmute': 'Unmute',
+    'mute.unmuteItem': 'Unmute {value}',
     'mute.title': 'What do you want to mute?',
     'mute.candidates': 'Suggestions',
     'mute.custom': 'Add keywords',
@@ -68,25 +70,26 @@ const MESSAGES = {
     'mute.done': 'Muted "{label}"',
     'mute.undo': 'Undo',
     'mute.removed': 'Unmuted',
-    'mute.help': 'Likes, Read later and mutes are saved in this browser only. To change your topics, edit the workflow or tech-catchup.yml in your repository.',
+    'mute.help':
+      'Likes, Read later and mutes are saved in this browser only. To change your topics, edit the workflow or tech-catchup.yml in your repository.',
     'save.failed': 'Could not save in this browser (private browsing does not keep data)',
     'list.separator': ', ',
   },
   ja: {
     'meta.description': '人気かつ自分の関心に合う技術記事を毎日1ページに',
-    'skip': '本文へ移動',
-    'reload': '再読み込み',
+    skip: '本文へ移動',
+    reload: '再読み込み',
     'theme.toggle': 'テーマ切り替え',
     'theme.label': 'テーマ: {mode}(タップで切り替え)',
     'theme.toast': 'テーマ: {mode}',
     'theme.system': 'システム',
     'theme.light': 'ライト',
     'theme.dark': 'ダーク',
-    'tabs': '表示切り替え',
+    tabs: '表示切り替え',
     'tab.today': '今日',
     'tab.later': 'あとで',
     'tab.mute': 'ミュート',
-    'sections': 'セクション',
+    sections: 'セクション',
     'section.official': '公式',
     'section.official.desc': '公式ブログとリリース({days}日以内の新着)',
     'section.forYou': 'あなた向け',
@@ -102,16 +105,17 @@ const MESSAGES = {
     'release.major': 'メジャー',
     'release.minor': 'マイナー',
     'release.patch': 'パッチ',
-    'updated': '{date} · {time} 更新',
-    'grouped': 'ほか{n}件',
-    'resurfaced': '再浮上',
-    'language': '言語',
-    'discussion': '{source}の議論ページ({score})',
-    'like': 'いいね',
-    'unlike': 'いいねを取り消す',
-    'later': 'あとで読む',
-    'unlater': 'あとで読むから外す',
-    'mute': 'ミュート',
+    updated: '{date} · {time} 更新',
+    grouped: 'ほか{n}件',
+    resurfaced: '再浮上',
+    read: '既読',
+    language: '言語',
+    discussion: '{source}の議論ページ({score})',
+    like: 'いいね',
+    unlike: 'いいねを取り消す',
+    later: 'あとで読む',
+    unlater: 'あとで読むから外す',
+    mute: 'ミュート',
     'load.missing': 'まだフィードが作られていません',
     'load.failed': '読み込めませんでした: {message}',
     'load.failedTitle': 'フィードを読み込めません',
@@ -123,12 +127,13 @@ const MESSAGES = {
     'empty.later.text': 'カードのしおりボタンで追加できます',
     'empty.mute': 'ミュートはありません',
     'empty.mute.text': 'カードのミュートボタンから追加できます',
-    'errors': '取得できなかった情報源: {sources}',
+    errors: '取得できなかった情報源: {sources}',
     'mute.kind.domain': 'サイト',
     'mute.kind.keyword': 'キーワード',
     'mute.option.domain': 'サイト: {value}',
     'mute.option.keyword': 'キーワード: {value}',
     'mute.unmute': '解除',
+    'mute.unmuteItem': '{value} のミュートを解除',
     'mute.title': '何をミュートしますか?',
     'mute.candidates': '候補',
     'mute.custom': 'キーワードを追加',
@@ -139,7 +144,8 @@ const MESSAGES = {
     'mute.done': '「{label}」をミュートしました',
     'mute.undo': '元に戻す',
     'mute.removed': 'ミュートを解除しました',
-    'mute.help': 'いいね・あとで読む・ミュートは、このブラウザにだけ保存されます。関心のあるトピックは、リポジトリのワークフローか tech-catchup.yml で変更できます。',
+    'mute.help':
+      'いいね・あとで読む・ミュートは、このブラウザにだけ保存されます。関心のあるトピックは、リポジトリのワークフローか tech-catchup.yml で変更できます。',
     'save.failed': 'このブラウザに保存できませんでした(プライベートモードでは保存されません)',
     'list.separator': '、',
   },
@@ -155,11 +161,6 @@ function initialLanguage() {
   return navigator.language?.toLowerCase().startsWith('ja') ? 'ja' : 'en';
 }
 
-export function getLanguage() {
-  return lang;
-}
-
-/** Returns true when the language changed */
 export function setLanguage(next) {
   if (!(next in MESSAGES) || next === lang) return false;
   lang = next;
@@ -171,7 +172,7 @@ export function t(key, vars = {}) {
   return text.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? ''));
 }
 
-/** Fills the static HTML: data-i18n (text), data-i18n-label (aria-label + title), data-i18n-placeholder */
+/** Fills the static HTML: data-i18n (text), data-i18n-label (aria-label + title), data-i18n-aria (aria-label), data-i18n-placeholder */
 export function translateDocument() {
   document.documentElement.lang = lang;
   document.querySelector('meta[name="description"]')?.setAttribute('content', t('meta.description'));
@@ -184,6 +185,9 @@ export function translateDocument() {
   for (const el of document.querySelectorAll('[data-i18n-label]')) {
     el.setAttribute('aria-label', t(el.dataset.i18nLabel));
     el.setAttribute('title', t(el.dataset.i18nLabel));
+  }
+  for (const el of document.querySelectorAll('[data-i18n-aria]')) {
+    el.setAttribute('aria-label', t(el.dataset.i18nAria));
   }
   for (const el of document.querySelectorAll('[data-i18n-placeholder]')) {
     el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder));

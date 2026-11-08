@@ -1,15 +1,10 @@
-/**
- * An HTTP client that is gentle on the sites it reads:
- * - requests to the same host run one at a time, with a pause in between
- * - it identifies itself with its own User-Agent
- * - every request has a timeout
- */
+/** Requests to the same host run one at a time with a pause in between, so no site gets hammered */
 
-/** On Actions, name the repository running the job, so every user's requests identify their own repo */
-const REPOSITORY = /^[\w.-]+\/[\w.-]+$/.test(process.env.GITHUB_REPOSITORY ?? '')
-  ? process.env.GITHUB_REPOSITORY
-  : 'kamegoro/tech-catchup';
-const USER_AGENT = `tech-catchup/0.2 (personal tech reader; github.com/${REPOSITORY})`;
+/** On Actions, name the repository running the job, so each user's requests identify their own repo */
+export function userAgent(env: NodeJS.ProcessEnv = process.env): string {
+  const repo = env.GITHUB_REPOSITORY ?? '';
+  return `tech-catchup/0.2 (personal tech reader; github.com/${/^[\w.-]+\/[\w.-]+$/.test(repo) ? repo : 'kamegoro/tech-catchup'})`;
+}
 const DEFAULT_INTERVAL_MS = 1500;
 /** Per-host pauses, e.g. to honor Crawl-delay in robots.txt */
 const HOST_INTERVAL_MS: Record<string, number> = {
@@ -28,7 +23,7 @@ function sleep(ms: number): Promise<void> {
 
 async function rawFetch(url: string, headers: Record<string, string>): Promise<Response> {
   const res = await fetch(url, {
-    headers: { 'User-Agent': USER_AGENT, ...headers },
+    headers: { 'User-Agent': userAgent(), ...headers },
     signal: AbortSignal.timeout(TIMEOUT_MS),
     redirect: 'follow',
   });
@@ -38,7 +33,6 @@ async function rawFetch(url: string, headers: Record<string, string>): Promise<R
   return res;
 }
 
-/** Fetches through a per-host queue */
 export function politeFetch(url: string, headers: Record<string, string> = {}): Promise<Response> {
   const host = new URL(url).host;
   const interval = HOST_INTERVAL_MS[host] ?? DEFAULT_INTERVAL_MS;

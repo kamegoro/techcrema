@@ -1,8 +1,4 @@
-/**
- * Configuration: language defaults, overridden by an optional YAML file,
- * overridden by GitHub Action inputs (passed in as TC_* environment variables).
- * Topic presets (src/presets.ts) add topics and official feeds on top.
- */
+/** Settings: language defaults ← optional YAML file ← action inputs (TC_* variables), plus topic presets */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
@@ -13,7 +9,16 @@ export const LANGUAGES = ['en', 'ja'] as const;
 export type Language = (typeof LANGUAGES)[number];
 
 /** Sources with a popularity signal. `github` = new repositories gaining stars. */
-export const PLATFORMS = ['hackernews', 'lobsters', 'devto', 'huggingface', 'github', 'hatena', 'zenn', 'qiita'] as const;
+export const PLATFORMS = [
+  'hackernews',
+  'lobsters',
+  'devto',
+  'huggingface',
+  'github',
+  'hatena',
+  'zenn',
+  'qiita',
+] as const;
 export type PlatformId = (typeof PLATFORMS)[number];
 
 export interface Topic {
@@ -23,9 +28,7 @@ export interface Topic {
 
 export interface Config {
   language: Language;
-  /** Topic presets that were applied */
   presets: PresetName[];
-  /** Page title shown in the header and browser tab */
   title: string;
   /** IANA time zone used to decide what "today" is */
   timezone: string;
@@ -75,11 +78,8 @@ export const LANGUAGE_DEFAULTS: Record<Language, Config> = {
 
 export class ConfigError extends Error {}
 
-// ---------------------------------------------------------------------------
 // Parsing helpers. Inputs come from people's YAML and workflow files, so every
 // value is checked and errors say exactly which setting is wrong.
-// ---------------------------------------------------------------------------
-
 /** "a, b\nc" or ["a", "b"] → ["a", "b", "c"] */
 export function list(value: unknown, field: string): string[] {
   if (value === undefined || value === null || value === '') return [];
@@ -87,7 +87,8 @@ export function list(value: unknown, field: string): string[] {
   if (!items) throw new ConfigError(`${field}: expected a list or a comma-separated string`);
   return items
     .map((v) => {
-      if (typeof v !== 'string' && typeof v !== 'number') throw new ConfigError(`${field}: every item must be a string`);
+      if (typeof v !== 'string' && typeof v !== 'number')
+        throw new ConfigError(`${field}: every item must be a string`);
       return String(v).trim();
     })
     .filter(Boolean);
@@ -117,6 +118,16 @@ export function parseSources(value: unknown): PlatformId[] {
  *   rust: rust, cargo
  *   rust: { weight: 0.8, keywords: [rust, cargo] }
  */
+function parseTopic(def: unknown, field: string): Topic {
+  if (!def || typeof def !== 'object' || Array.isArray(def)) return { weight: 1, keywords: list(def, field) };
+  const d = def as { weight?: unknown; keywords?: unknown };
+  const weight = d.weight === undefined ? 1 : Number(d.weight);
+  if (!Number.isFinite(weight) || weight <= 0 || weight > 1) {
+    throw new ConfigError(`${field}.weight: expected a number between 0 and 1`);
+  }
+  return { weight, keywords: list(d.keywords, `${field}.keywords`) };
+}
+
 export function parseTopics(value: unknown): Record<string, Topic> {
   if (value === undefined || value === null || value === '') return {};
   const raw = typeof value === 'string' ? parseYaml(value) : value;
@@ -126,17 +137,9 @@ export function parseTopics(value: unknown): Record<string, Topic> {
   const topics: Record<string, Topic> = {};
   for (const [name, def] of Object.entries(raw as Record<string, unknown>)) {
     const field = `topics.${name}`;
-    if (def && typeof def === 'object' && !Array.isArray(def)) {
-      const d = def as { weight?: unknown; keywords?: unknown };
-      const weight = d.weight === undefined ? 1 : Number(d.weight);
-      if (!Number.isFinite(weight) || weight <= 0 || weight > 1) {
-        throw new ConfigError(`${field}.weight: expected a number between 0 and 1`);
-      }
-      topics[name] = { weight, keywords: list(d.keywords, `${field}.keywords`) };
-    } else {
-      topics[name] = { weight: 1, keywords: list(def, field) };
-    }
-    if (topics[name]!.keywords.length === 0) throw new ConfigError(`${field}: needs at least one keyword`);
+    const topic = parseTopic(def, field);
+    if (topic.keywords.length === 0) throw new ConfigError(`${field}: needs at least one keyword`);
+    topics[name] = topic;
   }
   return topics;
 }
@@ -201,7 +204,8 @@ function parseLayout(value: unknown, base: LayoutConfig): LayoutConfig {
   if (typeof value !== 'object' || Array.isArray(value)) throw new ConfigError('layout: expected a mapping');
   const layout = { ...base };
   for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
-    if (!(key in base)) throw new ConfigError(`layout.${key}: unknown setting (available: ${Object.keys(base).join(', ')})`);
+    if (!(key in base))
+      throw new ConfigError(`layout.${key}: unknown setting (available: ${Object.keys(base).join(', ')})`);
     const n = Number(v);
     if (!Number.isFinite(n) || n < 0) throw new ConfigError(`layout.${key}: expected a non-negative number`);
     layout[key as keyof LayoutConfig] = n;
@@ -209,10 +213,10 @@ function parseLayout(value: unknown, base: LayoutConfig): LayoutConfig {
   return layout;
 }
 
-// ---------------------------------------------------------------------------
-
 /** Settings as written by a person (YAML file or action inputs). Everything is optional. */
-export type ConfigSource = Partial<Record<'language' | 'presets' | 'title' | 'timezone' | 'sources' | 'topics' | 'official' | 'layout', unknown>> & {
+export type ConfigSource = Partial<
+  Record<'language' | 'presets' | 'title' | 'timezone' | 'sources' | 'topics' | 'official' | 'layout', unknown>
+> & {
   mute?: unknown;
   mute_keywords?: unknown;
   mute_domains?: unknown;
@@ -222,7 +226,8 @@ const isSet = (v: unknown) => v !== undefined && v !== null && !(typeof v === 's
 
 /** preset(language) ← file ← inputs. Later layers win field by field. */
 export function resolveConfig(file: ConfigSource, inputs: ConfigSource): Config {
-  const pick = (key: keyof ConfigSource) => (isSet(inputs[key]) ? inputs[key] : isSet(file[key]) ? file[key] : undefined);
+  const pick = (key: keyof ConfigSource) =>
+    isSet(inputs[key]) ? inputs[key] : isSet(file[key]) ? file[key] : undefined;
 
   const language = parseLanguage(pick('language') ?? 'en');
   const defaults = LANGUAGE_DEFAULTS[language];
@@ -286,7 +291,8 @@ export async function loadConfig(env: NodeJS.ProcessEnv = process.env, cwd = pro
   try {
     const raw = parseYaml(await readFile(file, 'utf8')) as unknown;
     if (raw !== null && raw !== undefined) {
-      if (typeof raw !== 'object' || Array.isArray(raw)) throw new ConfigError(`${file}: expected a mapping at the top level`);
+      if (typeof raw !== 'object' || Array.isArray(raw))
+        throw new ConfigError(`${file}: expected a mapping at the top level`);
       parsed = raw as ConfigSource;
     }
   } catch (err) {

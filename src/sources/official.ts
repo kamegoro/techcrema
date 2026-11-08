@@ -1,6 +1,7 @@
 /** Official sources (no popularity signal): blog RSS/Atom feeds and GitHub releases */
-import { fetchJson, fetchText, githubHeaders } from '../http.ts';
+
 import { parseFeed, parseFeedTitle } from '../feed-parser.ts';
+import { fetchJson, fetchText, githubHeaders } from '../http.ts';
 import { domainOf } from '../normalize.ts';
 import type { RawItem } from '../types.ts';
 
@@ -44,17 +45,19 @@ export async function fetchGithubReleases(repo: string): Promise<RawItem[]> {
     `https://api.github.com/repos/${repo}/releases?per_page=10`,
     githubHeaders(),
   );
-  return releases
-    // Skip moving tags such as "nightly" or "stable"; they duplicate the versioned releases
-    .filter((r) => !r.draft && !r.prerelease && /\d/.test(r.tag_name))
-    .map((r) => ({
-      source: 'github_release',
-      title: `${repo.split('/')[1]} ${r.name?.trim() || r.tag_name}`,
-      url: r.html_url,
-      score: null,
-      tags: [],
-      publishedAt: r.published_at,
-      publisher: repo,
-      releaseKind: classifyRelease(r.tag_name),
-    }));
+  return (
+    releases
+      // Skip moving tags such as "nightly" or "stable"; they duplicate the versioned releases
+      .filter((r) => !r.draft && !r.prerelease && /\d/.test(r.tag_name))
+      .map((r) => ({
+        source: 'github_release',
+        title: `${repo.split('/')[1]} ${r.name?.trim() || r.tag_name}`,
+        url: r.html_url,
+        score: null,
+        tags: [],
+        publishedAt: r.published_at,
+        publisher: repo,
+        releaseKind: classifyRelease(r.tag_name),
+      }))
+  );
 }

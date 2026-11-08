@@ -26,7 +26,7 @@ jobs:
           persist-credentials: false
       - uses: ./
         with:
-          config: examples/smoke.yml
+          config: .github/smoke.yml
           language: ${{ matrix.language }}
           deploy: false
           cache-key: smoke-${{ matrix.language }}

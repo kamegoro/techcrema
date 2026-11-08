@@ -1,7 +1,7 @@
 node_modules/
-data/*
-!data/.gitkeep
+data/
 .DS_Store
 dist/
 playwright-report/
 test-results/
+coverage/

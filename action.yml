@@ -93,7 +93,7 @@ runs:
         TC_TIMEZONE: ${{ inputs.timezone }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         QIITA_TOKEN: ${{ inputs.qiita-token }}
-      run: node "$GITHUB_ACTION_PATH/src/collect.ts"
+      run: node "$GITHUB_ACTION_PATH/src/bin.ts" collect
 
     - uses: actions/cache/save@v6
       with:
@@ -105,7 +105,7 @@ runs:
       env:
         TECH_CATCHUP_DATA_DIR: ${{ runner.temp }}/tech-catchup-data
         TECH_CATCHUP_OUT_DIR: ${{ runner.temp }}/tech-catchup-site
-      run: node "$GITHUB_ACTION_PATH/src/build.ts"
+      run: node "$GITHUB_ACTION_PATH/src/bin.ts" build
 
     - uses: actions/upload-pages-artifact@v5
       if: inputs.deploy == 'true'

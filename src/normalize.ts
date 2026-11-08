@@ -1,18 +1,18 @@
-import { isHttpUrl } from './security.ts';
 import type { Appearance, RawItem, Story } from './types.ts';
 
+/** Only http(s) URLs are kept; javascript:, data: and the like are dropped */
+export function isHttpUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    const u = new URL(value);
+    return u.protocol === 'https:' || u.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 const TRACKING_PARAM_PREFIXES = ['utm_'];
-const TRACKING_PARAMS = new Set([
-  'fbclid',
-  'gclid',
-  'ref',
-  'ref_src',
-  'source',
-  'mc_cid',
-  'mc_eid',
-  'igshid',
-  'si',
-]);
+const TRACKING_PARAMS = new Set(['fbclid', 'gclid', 'ref', 'ref_src', 'source', 'mc_cid', 'mc_eid', 'igshid', 'si']);
 
 /**
  * Normalizes a URL so the same article gets the same key everywhere.
@@ -31,7 +31,7 @@ export function normalizeUrl(input: string): string {
       const key = k.toLowerCase();
       return !TRACKING_PARAMS.has(key) && !TRACKING_PARAM_PREFIXES.some((p) => key.startsWith(p));
     })
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    .sort(([a], [b]) => Number(a > b) - Number(a < b));
   const path = url.pathname.replace(/\/+$/, '');
   const query = params.length ? `?${new URLSearchParams(params).toString()}` : '';
   // Paths stay as they are: some sites treat them case-sensitively
@@ -98,8 +98,8 @@ export function mergeIntoStories(items: RawItem[], percentileOf: (item: RawItem)
     }
     // Listed twice on the same platform: keep the higher score
     const sameSource = existing.appearances.findIndex((a) => a.source === item.source);
-    if (sameSource >= 0) {
-      const prev = existing.appearances[sameSource]!;
+    const prev = existing.appearances[sameSource];
+    if (prev) {
       if ((item.score ?? -1) > (prev.score ?? -1)) existing.appearances[sameSource] = appearance;
     } else {
       existing.appearances.push(appearance);
@@ -107,8 +107,9 @@ export function mergeIntoStories(items: RawItem[], percentileOf: (item: RawItem)
     existing.tags = [...new Set([...existing.tags, ...item.tags])];
     existing.publisher ??= item.publisher;
     existing.releaseKind ??= item.releaseKind;
-    if (!existing.publishedAt || (item.publishedAt && item.publishedAt < existing.publishedAt)) {
-      existing.publishedAt = item.publishedAt ?? existing.publishedAt;
+    // Keep the earliest known date
+    if (item.publishedAt && (!existing.publishedAt || item.publishedAt < existing.publishedAt)) {
+      existing.publishedAt = item.publishedAt;
     }
   }
   return [...byKey.values()];

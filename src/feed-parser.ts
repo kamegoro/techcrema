@@ -1,6 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
 
-/** RSS 2.0 / RSS 1.0 (RDF) / Atom entries in one common shape */
 export interface FeedEntry {
   title: string;
   link: string;
@@ -13,45 +12,48 @@ export interface FeedEntry {
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
-  // Don't convert values, so a title like "2048" stays a string
+  // Keep values as strings, so a title like "2048" doesn't become a number
   parseTagValue: false,
   trimValues: true,
-  // Decode numeric character references (&#x...;), which RSS 1.0 feeds use for non-ASCII text
+  // RSS 1.0 feeds write non-ASCII text as numeric character references (&#x...;)
   htmlEntities: true,
 });
 
-function asArray<T>(value: T | T[] | undefined | null): T[] {
+type XmlNode = Record<string, unknown>;
+
+const isNode = (value: unknown): value is XmlNode =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const child = (node: unknown, key: string): unknown => (isNode(node) ? node[key] : undefined);
+
+function asArray(value: unknown): unknown[] {
   if (value === undefined || value === null) return [];
   return Array.isArray(value) ? value : [value];
 }
 
 /** A text node arrives either as a string or as {#text: ...} */
 function text(value: unknown): string {
-  if (value === undefined || value === null) return '';
   if (typeof value === 'string') return value.trim();
-  if (typeof value === 'number') return String(value);
-  if (typeof value === 'object' && '#text' in (value as Record<string, unknown>)) {
-    return text((value as Record<string, unknown>)['#text']);
-  }
+  if (isNode(value)) return text(value['#text']);
   return '';
 }
 
 function toIso(value: string): string | null {
-  if (!value) return null;
   const t = Date.parse(value);
   return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
 function atomLink(link: unknown): string {
-  const links = asArray(link as Record<string, string> | Record<string, string>[]);
-  const alternate = links.find((l) => !l['@_rel'] || l['@_rel'] === 'alternate') ?? links[0];
-  if (!alternate) return '';
-  return typeof alternate === 'string' ? alternate : (alternate['@_href'] ?? '');
+  const links = asArray(link);
+  const alternate = links.find((l) => !child(l, '@_rel') || child(l, '@_rel') === 'alternate') ?? links[0];
+  return typeof alternate === 'string' ? alternate : text(child(alternate, '@_href'));
 }
 
+const categoryText = (c: unknown) => text(c) || text(child(c, '@_term'));
+
 /**
- * True when the document declares a DTD or entities. Text inside CDATA sections and comments
- * is ignored: feeds often embed whole HTML pages there (GitHub's blog includes "<!DOCTYPE html …>"),
+ * True when the document declares a DTD or entities. CDATA sections and comments are ignored:
+ * feeds often embed whole HTML pages there (the GitHub Blog includes "<!DOCTYPE html …>"),
  * and the parser treats that text as plain characters.
  */
 export function hasDtd(xml: string): boolean {
@@ -59,54 +61,56 @@ export function hasDtd(xml: string): boolean {
   return /<!DOCTYPE|<!ENTITY/i.test(outsideText);
 }
 
-/** Title of the feed itself (channel/feed title), used as the publisher name when none is configured */
+function parse(xml: string): XmlNode {
+  // RSS/Atom never needs a DTD; rejecting it rules out entity-expansion attacks such as Billion Laughs
+  if (hasDtd(xml)) throw new Error('Feeds with a DTD are not accepted');
+  return parser.parse(xml) as XmlNode;
+}
+
+/** Title of the feed itself, used as the publisher name when none is configured */
 export function parseFeedTitle(xml: string): string {
-  if (hasDtd(xml)) return '';
-  const doc = parser.parse(xml) as Record<string, any>;
-  return text(doc.rss?.channel?.title) || text(doc['rdf:RDF']?.channel?.title) || text(doc.feed?.title);
+  const doc = parse(xml);
+  return (
+    text(child(child(doc.rss, 'channel'), 'title')) ||
+    text(child(child(doc['rdf:RDF'], 'channel'), 'title')) ||
+    text(child(doc.feed, 'title'))
+  );
 }
 
 export function parseFeed(xml: string): FeedEntry[] {
-  // RSS/Atom never needs a DTD. Rejecting it rules out entity-expansion attacks such as Billion Laughs.
-  if (hasDtd(xml)) {
-    throw new Error('Feeds with a DTD are not accepted');
-  }
-  const doc = parser.parse(xml) as Record<string, any>;
+  const doc = parse(xml);
 
-  // RSS 2.0
-  if (doc.rss?.channel) {
-    return asArray(doc.rss.channel.item).map((item: any) => ({
-      title: text(item.title),
-      link: text(item.link),
-      publishedAt: toIso(text(item.pubDate) || text(item['dc:date'])),
-      categories: asArray(item.category).map(text).filter(Boolean),
+  const rssChannel = child(doc.rss, 'channel');
+  if (rssChannel) {
+    return asArray(child(rssChannel, 'item')).map((item) => ({
+      title: text(child(item, 'title')),
+      link: text(child(item, 'link')),
+      publishedAt: toIso(text(child(item, 'pubDate')) || text(child(item, 'dc:date'))),
+      categories: asArray(child(item, 'category')).map(text).filter(Boolean),
       bookmarkCount: null,
     }));
   }
 
-  // RSS 1.0 (RDF), used by Hatena Bookmark
-  if (doc['rdf:RDF']) {
-    return asArray(doc['rdf:RDF'].item).map((item: any) => {
-      const count = Number.parseInt(text(item['hatena:bookmarkcount']), 10);
+  const rdf = doc['rdf:RDF'];
+  if (rdf) {
+    return asArray(child(rdf, 'item')).map((item) => {
+      const count = Number.parseInt(text(child(item, 'hatena:bookmarkcount')), 10);
       return {
-        title: text(item.title),
-        link: text(item.link),
-        publishedAt: toIso(text(item['dc:date'])),
-        categories: asArray(item['dc:subject']).map(text).filter(Boolean),
+        title: text(child(item, 'title')),
+        link: text(child(item, 'link')),
+        publishedAt: toIso(text(child(item, 'dc:date'))),
+        categories: asArray(child(item, 'dc:subject')).map(text).filter(Boolean),
         bookmarkCount: Number.isNaN(count) ? null : count,
       };
     });
   }
 
-  // Atom
   if (doc.feed) {
-    return asArray(doc.feed.entry).map((entry: any) => ({
-      title: text(entry.title),
-      link: atomLink(entry.link),
-      publishedAt: toIso(text(entry.published) || text(entry.updated)),
-      categories: asArray(entry.category)
-        .map((c: any) => (typeof c === 'string' ? c : (c['@_term'] ?? '')))
-        .filter(Boolean),
+    return asArray(child(doc.feed, 'entry')).map((entry) => ({
+      title: text(child(entry, 'title')),
+      link: atomLink(child(entry, 'link')),
+      publishedAt: toIso(text(child(entry, 'published')) || text(child(entry, 'updated'))),
+      categories: asArray(child(entry, 'category')).map(categoryText).filter(Boolean),
       bookmarkCount: null,
     }));
   }

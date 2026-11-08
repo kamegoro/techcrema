@@ -35,21 +35,21 @@ function from(source: SourceId, percentileValue: number | null = 0.5) {
 }
 
 describe('percentile', () => {
-  it('上から何%かを返す(同点は半分ずつ数える)', () => {
+  it('returns the share ranked below (ties count half)', () => {
     assert.equal(percentile(10, [1, 2, 3, 10]), (3 + 0.5) / 4);
     assert.equal(percentile(1, [1, 1]), 0.5);
   });
-  it('window に自分が含まれなくても0〜1に収まる', () => {
+  it('stays within 0-1 even when the window lacks the score', () => {
     const p = percentile(100, [1, 2, 3]);
     assert.ok(p > 0.8 && p < 1);
   });
-  it('window が空なら中央の0.5', () => {
+  it('is 0.5 for an empty window', () => {
     assert.equal(percentile(5, []), 0.5);
   });
 });
 
 describe('popularity', () => {
-  it('最大パーセンタイル + 複数プラットフォームのボーナス', () => {
+  it('is the best percentile plus a cross-posting bonus', () => {
     const pop = popularity({
       appearances: [
         { source: 'hackernews', score: 1, percentile: 0.8 },
@@ -58,7 +58,7 @@ describe('popularity', () => {
     });
     assert.equal(Math.round(pop * 100) / 100, 0.85);
   });
-  it('1を超えない', () => {
+  it('never exceeds 1', () => {
     const pop = popularity({
       appearances: [
         { source: 'hackernews', score: 1, percentile: 0.99 },
@@ -67,22 +67,22 @@ describe('popularity', () => {
     });
     assert.equal(pop, 1);
   });
-  it('人気指標がなければ0', () => {
+  it('is 0 without any popularity signal', () => {
     assert.equal(popularity({ appearances: [{ source: 'official', score: null, percentile: null }] }), 0);
   });
 });
 
 describe('keywordMatcher', () => {
-  it('英数字は単語単位で照合する', () => {
+  it('matches ASCII keywords as whole words', () => {
     assert.equal(keywordMatcher('go')('Go 1.30 released'), true);
     assert.equal(keywordMatcher('go')('Google announces'), false);
     assert.equal(keywordMatcher('node.js')('Node.js 27'), true);
     assert.equal(keywordMatcher('claude code')('Using Claude Code daily'), true);
   });
-  it('日本語は部分一致', () => {
+  it('matches Japanese keywords as substrings', () => {
     assert.equal(keywordMatcher('テスト')('E2Eテストの書き方'), true);
   });
-  it('空のキーワードは何にも当たらない', () => {
+  it('never matches an empty keyword', () => {
     assert.equal(keywordMatcher('  ')('anything'), false);
   });
 });
@@ -93,35 +93,34 @@ describe('scoreInterest', () => {
       neovim: { weight: 1, keywords: ['neovim', 'lua'] },
       em: { weight: 0.7, keywords: ['1on1'] },
     },
-    mute: { keywords: [], domains: [] },
   };
-  it('当たったトピックの重みの最大を返す', () => {
+  it('returns the highest weight among matched topics', () => {
     const r = scoreInterest({ title: 'Neovim で 1on1 メモ', tags: [] }, config);
     assert.equal(r.interest, 1);
     assert.deepEqual(r.topics, ['neovim', 'em']);
     assert.deepEqual(r.matchedKeywords, ['neovim', '1on1']);
   });
-  it('タグも照合対象', () => {
+  it('also looks at tags', () => {
     assert.equal(scoreInterest({ title: 'Plugin tips', tags: ['Lua'] }, config).interest, 1);
   });
-  it('何にも当たらなければ0', () => {
+  it('is 0 when nothing matches', () => {
     assert.equal(scoreInterest({ title: 'Rust news', tags: [] }, config).interest, 0);
   });
 });
 
 describe('isMuted', () => {
   const mute = { keywords: ['crypto'], domains: ['example.org'] };
-  it('キーワードで除外する', () => {
+  it('mutes by keyword', () => {
     assert.equal(isMuted({ title: 'Crypto winter', tags: [], domain: 'a.com' }, mute), true);
   });
-  it('ドメインとそのサブドメインを除外する', () => {
+  it('mutes a domain and its subdomains', () => {
     assert.equal(isMuted({ title: 'x', tags: [], domain: 'blog.example.org' }, mute), true);
     assert.equal(isMuted({ title: 'x', tags: [], domain: 'notexample.org' }, mute), false);
   });
 });
 
 describe('seededShuffle', () => {
-  it('同じシードなら同じ並び、元の配列は変えない', () => {
+  it('gives the same order for the same seed without changing the input', () => {
     const input = [1, 2, 3, 4, 5, 6, 7, 8];
     assert.deepEqual(seededShuffle(input, '2026-11-08'), seededShuffle(input, '2026-11-08'));
     assert.deepEqual(input, [1, 2, 3, 4, 5, 6, 7, 8]);
@@ -130,7 +129,7 @@ describe('seededShuffle', () => {
 });
 
 describe('pickWithCaps', () => {
-  it('1つのプラットフォームが上限を超えないようにする', () => {
+  it('keeps any one platform under its cap', () => {
     const ranked = [
       story({ key: 'h1', appearances: from('hackernews', 0.99) }),
       story({ key: 'h2', appearances: from('hackernews', 0.98) }),
@@ -143,7 +142,7 @@ describe('pickWithCaps', () => {
       ['h1', 'h2', 'z1'],
     );
   });
-  it('クオータ分を先に確保し、結果は元の順位に並べる', () => {
+  it('reserves the quota first and keeps the original order', () => {
     const ranked = [
       story({ key: 'en1', appearances: from('hackernews') }),
       story({ key: 'en2', appearances: from('devto') }),
@@ -158,7 +157,7 @@ describe('pickWithCaps', () => {
 });
 
 describe('groupOfficial', () => {
-  it('同じ発信元は最新1件にまとめ、残りを件数で持つ', () => {
+  it('keeps the newest item per publisher and counts the rest', () => {
     const grouped = groupOfficial([
       story({ key: 'p1', publisher: 'microsoft/playwright', publishedAt: '2026-11-05T00:00:00Z' }),
       story({ key: 'p2', publisher: 'microsoft/playwright', publishedAt: '2026-11-07T00:00:00Z' }),
@@ -178,7 +177,7 @@ describe('buildSections', () => {
   const layout: LayoutConfig = {
     official_days: 3,
     for_you: 2,
-    for_you_min_japanese: 0,
+    for_you_min_local: 0,
     trending: 2,
     discover: 1,
     repos: 1,
@@ -189,7 +188,7 @@ describe('buildSections', () => {
   const sectionKeys = (sections: ReturnType<typeof buildSections>) =>
     Object.fromEntries(sections.map((s) => [s.id, s.stories.map((st) => st.key)]));
 
-  it('人気度と関心度の組み合わせで振り分ける', () => {
+  it('sorts stories into sections by popularity and interest', () => {
     const stories = [
       story({ key: 'official', appearances: from('official', null), publisher: 'Node.js' }),
       story({ key: 'old-official', appearances: from('official', null), publishedAt: '2026-10-01T00:00:00Z' }),
@@ -201,7 +200,7 @@ describe('buildSections', () => {
       story({ key: 'cold', pop: 0.2 }),
       story({ key: 'repo', appearances: from('github_new_repos', 0.9), pop: 0.9 }),
     ];
-    const keys = sectionKeys(buildSections({ stories, layout, today, now, seen: {} }));
+    const keys = sectionKeys(buildSections({ stories, layout, language: 'en', today, now, seen: {} }));
     assert.deepEqual(keys, {
       official: ['official'],
       forYou: ['mine-hot', 'mine-cold'],
@@ -211,7 +210,7 @@ describe('buildSections', () => {
     });
   });
 
-  it('前日までに出した記事は出さないが、大きく伸びたものは再浮上させる', () => {
+  it('hides stories shown before, but brings back ones that kept climbing', () => {
     const stories = [
       story({ key: 'shown', interest: 1, pop: 0.5 }),
       story({ key: 'grew', interest: 1, pop: 0.8 }),
@@ -222,7 +221,7 @@ describe('buildSections', () => {
       grew: { date: '2026-11-07', pop: 0.5 },
       today: { date: today, pop: 0.4 },
     };
-    const sections = buildSections({ stories, layout, today, now, seen });
+    const sections = buildSections({ stories, layout, language: 'en', today, now, seen });
     const forYou = sections.find((s) => s.id === 'forYou')!.stories;
     assert.deepEqual(
       forYou.map((s) => [s.key, s.resurfaced ?? false]),
@@ -233,20 +232,28 @@ describe('buildSections', () => {
     );
   });
 
-  it('古いプラットフォーム記事は出さない', () => {
+  it('drops old platform stories', () => {
     const stories = [story({ key: 'stale', interest: 1, pop: 0.9, publishedAt: '2026-10-01T00:00:00Z' })];
-    const keys = sectionKeys(buildSections({ stories, layout, today, now, seen: {} }));
+    const keys = sectionKeys(buildSections({ stories, layout, language: 'en', today, now, seen: {} }));
     assert.deepEqual(keys.forYou, []);
   });
 
-  it('ミュート用の予備を表示件数の後ろに足し、表示件数を limit に入れる', () => {
+  it('appends spares for mutes and records the visible count as limit', () => {
     const stories = ['a', 'b', 'c', 'd'].map((k, i) => story({ key: k, interest: 1, pop: 0.9 - i * 0.1 }));
-    const sections = buildSections({ stories, layout, today, now, seen: {}, spare: 1 });
+    const sections = buildSections({ stories, layout, language: 'en', today, now, seen: {}, spare: 1 });
     const forYou = sections.find((s) => s.id === 'forYou')!;
     assert.equal(forYou.limit, 2);
     assert.deepEqual(
       forYou.stories.map((s) => s.key),
       ['a', 'b', 'c'],
     );
+  });
+
+  it('prefers repositories described in the page language', () => {
+    const repo = (key: string, lang: Story['lang'], pop: number) =>
+      story({ key, lang, pop, appearances: from('github_new_repos', pop) });
+    const stories = [repo('zh-hot', 'zh', 0.99), repo('en-warm', 'en', 0.8)];
+    const keys = sectionKeys(buildSections({ stories, layout, language: 'en', today, now, seen: {} }));
+    assert.deepEqual(keys.repos, ['en-warm']);
   });
 });

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Tech Catchup — スマホ優先・ライト/ダーク対応
+   Tech Catchup — mobile first, light and dark
    ========================================================================== */
 
 :root {
@@ -99,7 +99,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   ベース
+   Base
    -------------------------------------------------------------------------- */
 *,
 *::before,
@@ -164,7 +164,7 @@ a {
 }
 
 /* --------------------------------------------------------------------------
-   ヘッダー
+   Header
    -------------------------------------------------------------------------- */
 .app-header {
   position: sticky;
@@ -261,7 +261,7 @@ a {
   display: block;
 }
 
-/* タブ */
+/* Tabs */
 .tabs {
   display: flex;
   gap: 4px;
@@ -305,7 +305,7 @@ a {
   display: none;
 }
 
-/* セクションへのジャンプ(横スクロールはこの行の中だけ) */
+/* Section chips (only this row scrolls horizontally) */
 .section-nav {
   display: flex;
   gap: 8px;
@@ -347,7 +347,7 @@ a {
 }
 
 /* --------------------------------------------------------------------------
-   本文
+   Content
    -------------------------------------------------------------------------- */
 .content {
   padding-top: 8px;
@@ -389,7 +389,7 @@ a {
   list-style: none;
 }
 
-/* カード */
+/* Cards */
 .card {
   position: relative;
   min-width: 0;
@@ -487,7 +487,7 @@ a.badge:hover {
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
-/* タイトル全体をタップ領域に(カード内のボタン・バッジは上に重ねる) */
+/* The whole card is the title's tap target (buttons and badges sit above it) */
 .card-link::after {
   content: '';
   position: absolute;
@@ -584,7 +584,7 @@ a.badge:hover {
   color: var(--saved);
 }
 
-/* 詰めた表示(公式・新しいリポジトリ) */
+/* Compact cards (Official, New repos) */
 .cards-compact {
   gap: 8px;
 }
@@ -607,7 +607,7 @@ a.badge:hover {
 }
 
 /* --------------------------------------------------------------------------
-   状態表示
+   Empty and loading states
    -------------------------------------------------------------------------- */
 .empty {
   margin: 48px 8px;
@@ -652,7 +652,7 @@ a.badge:hover {
   overflow-wrap: anywhere;
 }
 
-/* ミュート一覧 */
+/* Mute list */
 .mute-list {
   display: grid;
   gap: 8px;
@@ -693,7 +693,7 @@ a.badge:hover {
 }
 
 /* --------------------------------------------------------------------------
-   ボタン・フォーム
+   Buttons and forms
    -------------------------------------------------------------------------- */
 .button {
   display: inline-flex;
@@ -748,13 +748,13 @@ a.badge:hover {
   border-radius: 10px;
   background: var(--bg);
   color: var(--text);
-  /* iOSで入力時にズームされないよう16px以上にする */
+  /* At least 16px so iOS doesn't zoom in on focus */
   font: inherit;
   font-size: 16px;
 }
 
 /* --------------------------------------------------------------------------
-   ミュートのシート(スマホでは下から、PCでは中央)
+   Mute sheet (bottom sheet on phones, centered on wider screens)
    -------------------------------------------------------------------------- */
 .sheet {
   width: 100%;
@@ -837,7 +837,7 @@ a.badge:hover {
 }
 
 /* --------------------------------------------------------------------------
-   トースト
+   Toast
    -------------------------------------------------------------------------- */
 .toast {
   position: fixed;
@@ -877,7 +877,7 @@ a.badge:hover {
 }
 
 /* --------------------------------------------------------------------------
-   画面幅ごとの調整
+   Breakpoints
    -------------------------------------------------------------------------- */
 @media (min-width: 720px) {
   :root {

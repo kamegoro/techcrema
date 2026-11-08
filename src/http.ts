@@ -1,23 +1,23 @@
 /**
- * 相手サイトに負荷をかけないためのHTTPクライアント。
- * - 同じホストへのリクエストは直列にし、間隔をあける
- * - 独自のUser-Agentを名乗る
- * - タイムアウトを設ける
+ * An HTTP client that is gentle on the sites it reads:
+ * - requests to the same host run one at a time, with a pause in between
+ * - it identifies itself with its own User-Agent
+ * - every request has a timeout
  */
 
-/** Forkして使う人のリポジトリを名乗れるよう、Actions上では実行中のリポジトリ名を使う */
+/** On Actions, name the repository running the job, so every user's requests identify their own repo */
 const REPOSITORY = /^[\w.-]+\/[\w.-]+$/.test(process.env.GITHUB_REPOSITORY ?? '')
   ? process.env.GITHUB_REPOSITORY
   : 'kamegoro/tech-catchup';
 const USER_AGENT = `tech-catchup/0.2 (personal tech reader; github.com/${REPOSITORY})`;
 const DEFAULT_INTERVAL_MS = 1500;
-/** robots.txt の Crawl-delay などに合わせたホスト別の間隔 */
+/** Per-host pauses, e.g. to honor Crawl-delay in robots.txt */
 const HOST_INTERVAL_MS: Record<string, number> = {
   'b.hatena.ne.jp': 5000,
   'qiita.com': 2000,
 };
 const TIMEOUT_MS = 20_000;
-/** 異常に大きいレスポンスでメモリを使い切らないための上限(一番大きいOpenAIのRSSでも1MB弱) */
+/** Upper bound so a huge response can't exhaust memory (the largest feed we know of is under 1 MB) */
 export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
 const hostQueues = new Map<string, Promise<unknown>>();
@@ -38,23 +38,23 @@ async function rawFetch(url: string, headers: Record<string, string>): Promise<R
   return res;
 }
 
-/** ホストごとに直列化して取得する */
+/** Fetches through a per-host queue */
 export function politeFetch(url: string, headers: Record<string, string> = {}): Promise<Response> {
   const host = new URL(url).host;
   const interval = HOST_INTERVAL_MS[host] ?? DEFAULT_INTERVAL_MS;
   const previous = hostQueues.get(host) ?? Promise.resolve();
   const current = previous.then(() => rawFetch(url, headers));
-  // 成功・失敗にかかわらず、次のリクエストはこの完了から interval 後に始める。
-  // キューには失敗を伝播させないPromiseを置く。
+  // Whether this request succeeds or fails, the next one starts `interval` ms after it finishes.
+  // The queue holds a promise that never rejects, so one failure doesn't break the chain.
   const wait = () => sleep(interval);
   hostQueues.set(host, current.then(wait, wait));
   return current;
 }
 
-/** 本文を上限付きで読む。上限を超えたら途中で打ち切ってエラーにする */
+/** Reads the body up to `limit` bytes and aborts with an error beyond that */
 export async function readLimited(res: Response, limit = MAX_RESPONSE_BYTES): Promise<string> {
   const declared = Number(res.headers.get('content-length'));
-  if (declared > limit) throw new Error(`レスポンスが大きすぎます (${declared} bytes)`);
+  if (declared > limit) throw new Error(`Response too large (${declared} bytes)`);
   if (!res.body) return '';
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -65,7 +65,7 @@ export async function readLimited(res: Response, limit = MAX_RESPONSE_BYTES): Pr
     size += value.byteLength;
     if (size > limit) {
       await reader.cancel();
-      throw new Error(`レスポンスが大きすぎます (>${limit} bytes)`);
+      throw new Error(`Response too large (>${limit} bytes)`);
     }
     chunks.push(value);
   }

@@ -1,21 +1,21 @@
 /**
- * 並べ方のロジック。I/Oを持たない純粋関数だけを置く(テスト対象)。
+ * Ranking logic. Pure functions only, no I/O, so everything here is unit-tested.
  *
- * 考え方:
- * - 人気度(pop): 「そのプラットフォームの直近の記事の中で上から何%か」。
- *   HNの300ptとはてブの300usersのように単位の違う数字を同じ物差しにする。
- * - 関心度(interest): interests.yaml のキーワードに当たったトピックの重みの最大。
- * - この2つを混ぜずに、組み合わせでセクションに振り分ける。
+ * The idea:
+ * - Popularity (pop): where a story sits among its platform's recent stories, as a percentile.
+ *   This puts 300 HN points and 300 Hatena bookmarks on the same scale.
+ * - Interest: the highest weight among the configured topics the story matches.
+ * - The two are never blended into one score; sections are picked by combining them.
  */
 import type { InterestConfig, LayoutConfig, Section, SourceId, Story } from './types.ts';
 
 // ---------------------------------------------------------------------------
-// 人気度
+// Popularity
 // ---------------------------------------------------------------------------
 
 /**
- * window の中で score が上から何%に位置するか(0〜1)。同点は半分ずつ数える。
- * 例: 60件中の1位 → (59 + 0.5) / 60 ≒ 0.99
+ * Where `score` sits within `window`, from 0 to 1. Ties count half (midrank).
+ * e.g. the top story out of 60 → (59 + 0.5) / 60 ≈ 0.99
  */
 export function percentile(score: number, window: readonly number[]): number {
   if (window.length === 0) return 0.5;
@@ -26,7 +26,7 @@ export function percentile(score: number, window: readonly number[]): number {
     else if (v === score) equal++;
   }
   if (equal === 0) {
-    // window に自分自身が含まれていない場合も破綻しないように、自分を1件として足す
+    // Count the score itself too, so this works even when the window doesn't contain it
     return (less + 0.5) / (window.length + 1);
   }
   return (less + equal / 2) / window.length;
@@ -34,7 +34,7 @@ export function percentile(score: number, window: readonly number[]): number {
 
 const MULTI_PLATFORM_BONUS = 0.05;
 
-/** 各プラットフォームのパーセンタイルの最大 + 複数プラットフォームに出ている分のボーナス */
+/** Highest percentile across platforms, plus a bonus for each extra platform */
 export function popularity(story: Pick<Story, 'appearances'>): number {
   const ranked = story.appearances.filter((a) => a.percentile !== null);
   if (ranked.length === 0) return 0;
@@ -43,7 +43,7 @@ export function popularity(story: Pick<Story, 'appearances'>): number {
 }
 
 // ---------------------------------------------------------------------------
-// 関心度・ミュート
+// Interest and mutes
 // ---------------------------------------------------------------------------
 
 function escapeRegExp(s: string): string {
@@ -51,9 +51,9 @@ function escapeRegExp(s: string): string {
 }
 
 /**
- * キーワード照合関数を作る。
- * 英数字のみのキーワードは単語単位("go" は "google" に当たらない)、
- * 日本語を含むキーワードは部分一致。大文字小文字は区別しない。
+ * Builds a keyword matcher.
+ * ASCII keywords match whole words ("go" does not match "google");
+ * other keywords (e.g. Japanese) match as substrings. Case-insensitive.
  */
 export function keywordMatcher(keyword: string): (text: string) => boolean {
   const k = keyword.trim().toLowerCase();
@@ -103,7 +103,7 @@ export function isMuted(
 }
 
 // ---------------------------------------------------------------------------
-// 日付シード付き乱数(同じ日に何度開いても同じ並びになる)
+// Random numbers seeded by the date (the same order all day)
 // ---------------------------------------------------------------------------
 
 function hashString(s: string): number {
@@ -137,7 +137,7 @@ export function seededShuffle<T>(items: readonly T[], seed: string): T[] {
 }
 
 // ---------------------------------------------------------------------------
-// セクション組み立て
+// Building sections
 // ---------------------------------------------------------------------------
 
 const OFFICIAL_SOURCES: ReadonlySet<SourceId> = new Set(['official', 'github_release']);
@@ -152,19 +152,21 @@ export interface SeenEntry {
 export interface BuildInput {
   stories: Story[];
   layout: LayoutConfig;
-  /** 'YYYY-MM-DD'(ローカル日付) */
+  /** 'YYYY-MM-DD' in the configured time zone */
   today: string;
   now: Date;
-  /** 前日までに表示した記事 */
+  /** Language of the page; for_you_min_local keeps this many stories in it */
+  language: Story['lang'];
+  /** Stories shown on earlier days */
   seen: Record<string, SeenEntry>;
   /**
-   * 各セクションに、表示件数とは別に足しておく予備の件数。
-   * ミュートはブラウザ側で適用するので、ミュートで減った分をこの予備で埋める。
+   * Spare stories added to each section beyond its limit.
+   * Mutes are applied in the browser, which refills muted slots from these spares.
    */
   spare?: number;
 }
 
-/** パーセンタイルが最も高いプラットフォーム(セクション内の偏り制限に使う) */
+/** The platform where the story ranks highest (used to cap any one platform's share of a section) */
 export function primarySource(story: Story): SourceId {
   let best = story.appearances[0]!;
   for (const a of story.appearances) {
@@ -187,8 +189,8 @@ function ageDays(story: Story, now: Date): number {
 }
 
 /**
- * 上から順に取りつつ、1つのプラットフォームが max 件を超えないようにする。
- * 最初に mustInclude 条件を満たすものを quota 件まで確保する(日本語の最低件数など)。
+ * Takes stories from the top while keeping any one platform under its cap.
+ * If a quota is given, first reserves up to quota.count stories that pass quota.test (e.g. a minimum in the page's language).
  */
 export function pickWithCaps(
   ranked: readonly Story[],
@@ -216,11 +218,11 @@ export function pickWithCaps(
     }
   }
   for (const s of ranked) tryPick(s);
-  // 元の順位に並べ直す
+  // Restore the original ranking order
   return ranked.filter((s) => picked.includes(s));
 }
 
-/** 公式枠: 同じ発信元の新着は最新1件にまとめ、「ほかN件」を付ける */
+/** Official section: keep the newest item per publisher and count the rest ("+N more") */
 export function groupOfficial(stories: readonly Story[]): Story[] {
   const sorted = [...stories].sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''));
   const byPublisher = new Map<string, Story>();
@@ -236,7 +238,7 @@ export function groupOfficial(stories: readonly Story[]): Story[] {
   return [...byPublisher.values()];
 }
 
-/** 表示分(limit件)を選んだあと、残りから予備(spare件)を同じルールで選んで後ろに足す */
+/** Picks `limit` stories, then `spare` more from the rest by the same rules, appended after them */
 function pickWithSpare(
   ranked: readonly Story[],
   limit: number,
@@ -255,10 +257,10 @@ function pickWithSpare(
 }
 
 export function buildSections(input: BuildInput): Section[] {
-  const { layout, today, now, seen } = input;
+  const { layout, today, now, seen, language } = input;
   const spare = input.spare ?? 0;
 
-  // 前日以前に出した記事は除く。ただし人気度が大きく伸びたものは「再浮上」として1度だけ戻す。
+  // Hide stories shown on earlier days, except ones whose popularity jumped: those come back once, marked resurfaced.
   const visible: Story[] = [];
   for (const s of input.stories) {
     const prev = seen[s.key];
@@ -283,7 +285,7 @@ export function buildSections(input: BuildInput): Section[] {
     layout.for_you,
     spare,
     layout.max_source_ratio,
-    { count: layout.for_you_min_japanese, test: (s) => s.lang === 'ja' },
+    { count: layout.for_you_min_local, test: (s) => s.lang === language },
   );
 
   const trending = pickWithSpare(
@@ -300,44 +302,20 @@ export function buildSections(input: BuildInput): Section[] {
 
   const repos = visible
     .filter((s) => isRepoOnly(s))
-    .sort((a, b) => Number(b.interest > 0) - Number(a.interest > 0) || byPop(a, b))
+    // Interest first, then repos described in the page's language (new-repo rankings are often dominated by one language)
+    .sort(
+      (a, b) =>
+        Number(b.interest > 0) - Number(a.interest > 0) ||
+        Number(b.lang === language) - Number(a.lang === language) ||
+        byPop(a, b),
+    )
     .slice(0, layout.repos + spare);
 
   return [
-    {
-      id: 'official',
-      title: '公式',
-      description: `公式ブログとリリース(${layout.official_days}日以内の新着)`,
-      stories: official,
-      limit: official.length,
-    },
-    {
-      id: 'forYou',
-      title: 'あなた向け',
-      description: '関心に合う記事を人気順に',
-      stories: forYou,
-      limit: layout.for_you,
-    },
-    {
-      id: 'trending',
-      title: '話題',
-      description: '関心外だが各プラットフォームで上位3%',
-      stories: trending,
-      limit: layout.trending,
-    },
-    {
-      id: 'discover',
-      title: '発見',
-      description: '関心外から日替わりで',
-      stories: discover,
-      limit: layout.discover,
-    },
-    {
-      id: 'repos',
-      title: '新しいリポジトリ',
-      description: '直近7日に作られ、スターを集めているもの',
-      stories: repos,
-      limit: layout.repos,
-    },
+    { id: 'official', stories: official, limit: official.length },
+    { id: 'forYou', stories: forYou, limit: layout.for_you },
+    { id: 'trending', stories: trending, limit: layout.trending },
+    { id: 'discover', stories: discover, limit: layout.discover },
+    { id: 'repos', stories: repos, limit: layout.repos },
   ];
 }

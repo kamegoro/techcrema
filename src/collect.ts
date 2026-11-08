@@ -1,7 +1,8 @@
 /**
- * 収集の本体: 取得 → URLでまとめる → 人気度・関心度 → セクション分け → data/feed.json
- * `npm run collect` で実行する。GitHub Actions からも定期的に呼ばれる。
+ * The pipeline: fetch → merge by URL → popularity & interest → sections → feed.json
+ * Run with `npm run collect`; the GitHub Action runs it on a schedule.
  */
+import { loadConfig, type Config, type PlatformId } from './config.ts';
 import { mergeIntoStories } from './normalize.ts';
 import { buildSections, isMuted, percentile, popularity, scoreInterest } from './rank.ts';
 import { fetchGithubReleases, fetchOfficialFeed } from './sources/official.ts';
@@ -16,10 +17,9 @@ import {
   fetchZenn,
 } from './sources/platforms.ts';
 import {
-  loadInterests,
+  DATA_DIR,
   loadScoreWindow,
   loadSeen,
-  loadSources,
   localDate,
   saveFeed,
   saveScoreSnapshot,
@@ -28,56 +28,45 @@ import {
 } from './store.ts';
 import type { Feed, RawItem } from './types.ts';
 
+/** Extra stories per section so that mutes applied in the browser can be backfilled */
+const SPARE_PER_SECTION = 10;
+
+const PLATFORM_FETCHERS: Record<PlatformId, (now: Date) => Promise<RawItem[]>> = {
+  hackernews: fetchHackerNews,
+  lobsters: fetchLobsters,
+  devto: fetchDevto,
+  huggingface: fetchHuggingFace,
+  github: fetchGithubNewRepos,
+  hatena: fetchHatena,
+  zenn: fetchZenn,
+  qiita: fetchQiita,
+};
+
 interface Job {
   label: string;
   run: () => Promise<RawItem[]>;
 }
 
-function buildJobs(sources: Awaited<ReturnType<typeof loadSources>>, now: Date): Job[] {
-  const enabled = (id: string) => sources.platforms[id]?.enabled !== false;
-  const platformJobs: [string, () => Promise<RawItem[]>][] = [
-    ['hackernews', fetchHackerNews],
-    ['hatena', fetchHatena],
-    ['zenn', fetchZenn],
-    ['qiita', () => fetchQiita(now)],
-    ['devto', fetchDevto],
-    ['lobsters', fetchLobsters],
-    ['huggingface', fetchHuggingFace],
-    ['github_new_repos', () => fetchGithubNewRepos(now)],
-  ];
+function buildJobs(config: Config, now: Date): Job[] {
   return [
-    ...platformJobs.filter(([id]) => enabled(id)).map(([label, run]) => ({ label, run })),
-    ...(sources.official_feeds ?? []).map((f) => ({
-      label: f.name,
-      run: () => fetchOfficialFeed(f.name, f.url),
-    })),
-    ...(sources.github_releases ?? []).map((repo) => ({
-      label: repo,
-      run: () => fetchGithubReleases(repo),
-    })),
+    ...config.sources.map((id) => ({ label: id, run: () => PLATFORM_FETCHERS[id](now) })),
+    ...config.official.feeds.map((f) => ({ label: f.name ?? f.url, run: () => fetchOfficialFeed(f.name, f.url) })),
+    ...config.official.releases.map((repo) => ({ label: repo, run: () => fetchGithubReleases(repo) })),
   ];
 }
 
-/** ブラウザ側のミュートで減った分を埋めるため、各セクションに足しておく予備の件数 */
-const SPARE_PER_SECTION = 10;
-
-export async function collect(log: (msg: string) => void = () => undefined): Promise<Feed> {
+export async function collect(config: Config, log: (msg: string) => void = () => undefined): Promise<Feed> {
   const now = new Date();
   const today = localDate(now);
-  const [sources, interests, seen, history] = await Promise.all([
-    loadSources(),
-    loadInterests(),
-    loadSeen(today),
-    loadScoreWindow(today),
-  ]);
+  const [seen, history] = await Promise.all([loadSeen(today), loadScoreWindow(today)]);
 
-  // 1. 取得(ホストごとに直列・ホスト間は並列。1つ失敗しても他は続ける)
+  // 1. Fetch. Hosts run in parallel, requests to the same host one at a time; one failure doesn't stop the rest.
   const errors: Feed['errors'] = [];
   const results = await Promise.all(
-    buildJobs(sources, now).map(async (job) => {
+    buildJobs(config, now).map(async (job) => {
       try {
         const items = await job.run();
-        log(`  ✓ ${job.label}: ${items.length}件`);
+        log(`  ✓ ${job.label}: ${items.length}`);
         return items;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -89,7 +78,7 @@ export async function collect(log: (msg: string) => void = () => undefined): Pro
   );
   const items = results.flat();
 
-  // 2. 今日のスコアを保存し、直近14日分と合わせてパーセンタイルを出す
+  // 2. Save today's scores and compute percentiles against the last 14 days plus today
   const todayScores: ScoreSnapshot = {};
   for (const item of items) {
     if (item.score !== null) (todayScores[item.source] ??= []).push(item.score);
@@ -100,18 +89,26 @@ export async function collect(log: (msg: string) => void = () => undefined): Pro
     windows[source] = [...(history[source] ?? []), ...(todayScores[source] ?? [])];
   }
 
-  // 3. 同じURLをまとめ、人気度・関心度を付け、設定ファイルのミュートを除く
-  //    (画面から追加したミュートはブラウザに保存されているので、ブラウザ側で除く)
+  // 3. Merge by URL, score popularity and interest, drop muted stories.
+  //    (Mutes added from the page live in the browser and are applied there.)
   const stories = mergeIntoStories(items, (item) =>
     item.score === null ? null : percentile(item.score, windows[item.source] ?? []),
   )
-    .map((s) => ({ ...s, pop: popularity(s), ...scoreInterest(s, interests) }))
-    .filter((s) => !isMuted(s, interests.mute));
+    .map((s) => ({ ...s, pop: popularity(s), ...scoreInterest(s, config) }))
+    .filter((s) => !isMuted(s, config.mute));
 
-  // 4. セクション分け
-  const sections = buildSections({ stories, layout: sources.layout, today, now, seen, spare: SPARE_PER_SECTION });
+  // 4. Sections
+  const sections = buildSections({
+    stories,
+    layout: config.layout,
+    language: config.language,
+    today,
+    now,
+    seen,
+    spare: SPARE_PER_SECTION,
+  });
 
-  // 5. 表示した記事を記録(翌日以降は出さない)。予備の記事は表示されないことが多いので記録しない
+  // 5. Remember what was shown so it isn't repeated on later days. Spares are usually not shown, so skip them.
   for (const section of sections) {
     for (const s of section.stories.slice(0, section.limit)) {
       const prev = seen[s.key];
@@ -120,17 +117,28 @@ export async function collect(log: (msg: string) => void = () => undefined): Pro
   }
   await saveSeen(seen);
 
-  const feed: Feed = { generatedAt: now.toISOString(), date: today, sections, errors };
+  const feed: Feed = {
+    generatedAt: now.toISOString(),
+    date: today,
+    language: config.language,
+    title: config.title,
+    officialDays: config.layout.official_days,
+    sections,
+    errors,
+  };
   await saveFeed(feed);
   return feed;
 }
 
-// `node src/collect.ts` で直接実行されたとき
 if (import.meta.main) {
-  console.log('収集を開始します…');
-  const feed = await collect((m) => console.log(m));
-  const total = feed.sections.reduce((n, s) => n + Math.min(s.limit, s.stories.length), 0);
-  console.log(`\n${feed.date}: ${total}件を data/feed.json に書き出しました`);
-  for (const s of feed.sections) console.log(`  ${s.title}: ${Math.min(s.limit, s.stories.length)}件(予備込み ${s.stories.length}件)`);
-  if (feed.errors.length) console.log(`  失敗した情報源: ${feed.errors.map((e) => e.source).join(', ')}`);
+  const config = await loadConfig();
+  // "Today" follows the configured time zone, not the machine's
+  process.env.TZ = config.timezone;
+  const topics = Object.keys(config.topics);
+  console.log(`Collecting (${config.language}, ${config.timezone}; topics: ${topics.join(', ') || 'none'})…`);
+  const feed = await collect(config, (m) => console.log(m));
+  console.log(`\n${feed.date}: wrote ${DATA_DIR}/feed.json`);
+  for (const s of feed.sections) console.log(`  ${s.id}: ${Math.min(s.limit, s.stories.length)} (+${Math.max(0, s.stories.length - s.limit)} spare)`);
+  if (feed.errors.length) console.log(`  failed: ${feed.errors.map((e) => e.source).join(', ')}`);
+  if (topics.length === 0) console.log('\nTip: add `topics` to get a personalized "For you" section.');
 }

@@ -1,149 +1,216 @@
-# Tech Catchup
+<div align="center">
 
-各プラットフォームで**人気**で、かつ**自分の関心に合う**技術記事を、毎日1ページにまとめる個人用リーダーです。
-通勤中にスマホで5〜10分ほど眺めることを想定しています。要約はせず、タイトル・リンク・人気指標だけを並べます。
+# ☕ Tech Catchup
 
-## 仕組み
+**Your own daily tech front page: what's popular across Hacker News, Lobsters, dev.to and more, filtered to what you care about.**
 
+One GitHub Action builds a fast, mobile-friendly page every morning and publishes it to GitHub Pages.
+No server, no database, no AI summaries, no account to sign up for.
+
+<a href="https://github.com/kamegoro/tech-catchup/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kamegoro/tech-catchup/ci.yml?branch=main&label=CI&logo=github&style=flat"></a>
+<a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue?style=flat"></a>
+<a href="https://github.com/kamegoro/tech-catchup/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/kamegoro/tech-catchup?style=flat&logo=github&color=yellow"></a>
+
+[Features](#-features) • [Quick start](#-quick-start) • [Configuration](#%EF%B8%8F-configuration) • [Sources](#-sources) • [How ranking works](#-how-ranking-works) • [日本語](docs/README.ja.md)
+
+<img src="docs/demo.gif" alt="Scrolling through the day's sections, muting a site, saving a story for later and switching to dark mode" width="320" />
+
+</div>
+
+---
+
+## 🤔 Why
+
+Keeping up with tech means opening five sites, scrolling past the same stories, and still missing the release you actually needed.
+RSS readers show you *everything*; aggregators show you what's popular *for everyone*.
+
+Tech Catchup shows the overlap: **stories that are popular right now _and_ match your interests**, plus a few popular ones from outside your bubble, on a single page you can skim in five minutes on your commute.
+
+## ✨ Features
+
+- 🎯 **Popular × relevant**: every story is scored on how popular it is on its own platform and how well it matches your topics
+- ⚖️ **Fair across platforms**: 300 HN points and 50 dev.to reactions mean different things, so each score becomes a percentile within its platform's last 14 days ([how](#-how-ranking-works))
+- 🧭 **Five sections a day**: *Official* (blogs & releases you follow), *For you*, *Trending* (top 3% outside your topics), *Discover* (a daily random pick) and *New repos*
+- 🔁 **No repeats**: stories you saw yesterday stay hidden unless they keep climbing
+- 📱 **Built for phones**: responsive down to 320px, dark mode, add-to-home-screen, light on data (one small JSON file)
+- 🔇 **Mute from the page**: tap to hide a site or keyword; the section refills from spare stories
+- 🔖 **Read later & likes**: stored in your browser; nothing leaves your device
+- 🌐 **English and Japanese**: the UI and default sources follow `language`
+- 🪶 **Small and dependency-light**: TypeScript run directly by Node.js, two runtime dependencies, a vanilla JS front end
+- 🤝 **Polite by design**: official APIs and RSS only (no HTML scraping), one request at a time per host, a couple of runs a day
+
+<table>
+  <tr>
+    <td><img src="docs/screenshot-light.png" alt="Light mode on a phone" width="260"></td>
+    <td><img src="docs/screenshot-dark.png" alt="Dark mode on a phone" width="260"></td>
+  </tr>
+</table>
+
+## 🚀 Quick start
+
+You need a GitHub repository for your page. A new, empty one is fine.
+
+**1. Add the workflow.** Create `.github/workflows/tech-catchup.yml` (also in [examples/workflow.yml](examples/workflow.yml)):
+
+```yaml
+name: Tech Catchup
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # every day at 06:00 UTC
+  workflow_dispatch: # lets you run it by hand
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.catchup.outputs.page_url }}
+    steps:
+      - id: catchup
+        uses: kamegoro/tech-catchup@v1
+        with:
+          language: en
+          topics: |
+            rust: [rust, cargo]
+            databases: [postgres, sqlite, duckdb]
+            ai: { weight: 0.8, keywords: [llm, agents, mcp] }
+          official: |
+            https://blog.rust-lang.org/feed.xml
+            rust-lang/rust
 ```
-GitHub Actions(毎日 6:00 / 17:00)
-  └ 各サイトの API・RSS から取得 → 人気度と関心度で並べる → feed.json
-      └ GitHub Pages に静的サイトとして公開(サーバー・DBなし)
-          └ スマホ・PCのブラウザで feed.json を読んで表示
+
+**2. Turn on Pages.** Go to **Settings → Pages** and set **Source** to **GitHub Actions**.
+
+**3. Run it once.** Go to **Actions → Tech Catchup → Run workflow**. About a minute later your page is live at `https://<you>.github.io/<repo>/`.
+
+From then on it updates on schedule. On your phone, use **Add to Home Screen** and it opens like an app.
+
+> [!NOTE]
+> GitHub Pages on the free plan needs a **public** repository, so your topics are visible to anyone who looks.
+> The page is marked `noindex` so search engines skip it.
+
+## ⚙️ Configuration
+
+Everything is optional. With no inputs you get an English page of what's popular across the default sources.
+
+| Input | Description | Default |
+|---|---|---|
+| `language` | `en` or `ja`. Sets the UI language and the default sources | `en` |
+| `topics` | What you care about, as YAML (see below) | none |
+| `sources` | Comma-separated ids from [Sources](#-sources) | depends on `language` |
+| `official` | One per line: an RSS/Atom URL (optionally `Name https://…`), or `owner/repo` for GitHub releases | none |
+| `mute-keywords` | Comma-separated keywords to never show | none |
+| `mute-domains` | Comma-separated domains to never show (subdomains included) | none |
+| `title` | Page title | `Tech Catchup` |
+| `timezone` | IANA time zone that decides when "today" starts | `UTC` (`Asia/Tokyo` for `ja`) |
+| `config` | Path to a YAML file with the same settings; inputs override it | `tech-catchup.yml` if present |
+| `deploy` | `false` builds and uploads the site without deploying | `true` |
+| `qiita-token` | Optional Qiita token for a higher rate limit | none |
+
+### Topics
+
+A story goes to **For you** when its title or tags contain any of a topic's keywords.
+
+```yaml
+topics: |
+  rust: [rust, cargo]                                # short form, weight 1
+  frontend: react, vue, svelte                       # comma-separated works too
+  ai: { weight: 0.8, keywords: [llm, agents, mcp] }  # lower weight ranks a little lower
 ```
 
-- いいね・あとで読む・ミュートは、ブラウザの localStorage に保存します(端末ごとに別です)
-- 人気度の計算に使う直近14日のスコア履歴は、Actions のキャッシュで次回の実行に引き継ぎます
+- ASCII keywords match whole words: `go` does not match `google`
+- Other keywords (Japanese, for example) match anywhere in the text
+- Matching ignores case
 
-## 使い方(GitHub Pages で公開する)
+### Using a config file
 
-1. このリポジトリを Fork する(またはこのリポジトリをそのまま使う)
-2. `config/interests.yaml` を自分の関心に合わせて書き換える
-3. Settings → Pages → Build and deployment の Source を **GitHub Actions** にする
-4. Actions タブで「Update feed」を選び、Run workflow を押す
-5. 数分後、`https://<ユーザー名>.github.io/<リポジトリ名>/` で見られます
+For longer setups, check out your repository and keep the settings in `tech-catchup.yml` ([example](tech-catchup.yml)):
 
-その後は 6:00 と 17:00(日本時間)に自動で更新されます。時刻やタイムゾーンは `.github/workflows/pages.yml` で変えられます。
-`main` に push したときは、取得はせずに今のフィードのまま画面だけ公開し直します。
+```yaml
+steps:
+  - uses: actions/checkout@v7
+  - id: catchup
+    uses: kamegoro/tech-catchup@v1 # reads ./tech-catchup.yml
+```
 
-注意:
+The file also accepts `layout`, which sets how many stories each section shows:
 
-- 無料プランの GitHub Pages は、**公開リポジトリ**でしか使えません。設定ファイル(関心キーワード)も公開されます
-- Pages のURLは誰でも開けます(検索エンジンには載らないよう `noindex` を付けています)
-- GitHub は、60日間リポジトリに動きがないと定期実行を止めます。止まったら Actions タブから再開してください
+```yaml
+layout:
+  for_you: 10            # stories in "For you"
+  for_you_min_local: 0   # keep at least this many in your language in "For you"
+  trending: 5
+  discover: 3
+  repos: 3
+  official_days: 3       # how far back "Official" looks
+  max_source_ratio: 0.4  # no platform takes more than 40% of a section
+```
 
-スマホでは、ブラウザの「ホーム画面に追加」を使うとアプリのように開けます。
+## 📡 Sources
 
-## 手元で動かす
+| Source | `sources` id | Popularity signal | Default for |
+|---|---|---|---|
+| [Hacker News](https://news.ycombinator.com) | `hackernews` | points (front page) | `en`, `ja` |
+| [Lobsters](https://lobste.rs) | `lobsters` | score | `en`, `ja` |
+| [dev.to](https://dev.to) | `devto` | reactions | `en`, `ja` |
+| [Hugging Face Papers](https://huggingface.co/papers) | `huggingface` | upvotes | `en`, `ja` |
+| [GitHub](https://github.com) (repos created in the last 7 days) | `github` | stars | `en`, `ja` |
+| [Hatena Bookmark](https://b.hatena.ne.jp/hotentry/it) | `hatena` | bookmarks | `ja` |
+| [Zenn](https://zenn.dev) | `zenn` | likes | `ja` |
+| [Qiita](https://qiita.com) | `qiita` | likes | `ja` |
+| Any RSS/Atom feed or GitHub releases | via `official` | none (always shown when new) | |
 
-Node.js 24 以上が必要です(TypeScript をビルドなしでそのまま実行します)。
+Every source uses an official API, a public JSON endpoint or RSS. Want another one? See [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-source).
+
+## 🧮 How ranking works
+
+1. **Popularity becomes a percentile.** Each raw score turns into "the share of this platform's stories from the last 14 days that scored lower". A story with 300 points on HN and one with 60 reactions on dev.to can now be compared fairly.
+2. **Cross-posting bonus.** A story found on several platforms gets +0.05 per extra platform.
+3. **Interest.** The highest weight among the topics it matches (0 if none).
+4. **Sections.**
+   - **For you:** interest above 0, most popular first.
+   - **Trending:** no topic match and popularity ≥ 0.97.
+   - **Discover:** no match and popularity between 0.85 and 0.97, shuffled with the date as the seed so it stays the same all day.
+5. **Variety.** No single platform fills more than 40% of a section.
+6. **Freshness.** Platform stories older than 4 days are dropped. Stories shown on an earlier day stay hidden unless their popularity rises by 0.1 or more; then they come back once, marked *Back again*.
+
+The 14-day score history and the list of shown stories are kept in the Actions cache between runs. Only today's `feed.json` is published.
+
+## 🔒 Privacy & etiquette
+
+- **What gets published:** titles, links and popularity numbers. No article text is copied.
+- **What stays on your device:** likes, Read later and mutes live in your browser's `localStorage` and are never sent anywhere.
+- **No tracking:** the page loads nothing from third parties, and a strict Content Security Policy blocks inline scripts and outside requests.
+- **Gentle fetching:** each run makes one pass over the sources. Requests to the same host go one at a time with a pause (5 seconds for Hatena, per its `robots.txt`). Every request carries a User-Agent naming your repository. Please keep the schedule to a couple of runs a day.
+- **Terms of service:** this is meant as a personal reading page. If you build a public service on top of it, check each source's terms first.
+
+## 💻 Running locally
+
+Requires Node.js 24 or later. TypeScript runs directly, with no build step.
 
 ```sh
 npm install
-npm run update    # 収集して dist/ を作る(10〜20秒)
-npm run preview   # http://localhost:8787 で確認
+npm run collect   # fetch and rank using ./tech-catchup.yml (about 20 seconds)
+npm run build     # assemble the static site in dist/
+npm run preview   # http://localhost:8787
+npm run check     # type check + tests
+npm run demo -- dist docs   # re-record the README GIF and screenshots (needs Chrome and ffmpeg)
 ```
 
-## 画面の構成
+## 🤝 Contributing
 
-| セクション | 中身 |
-|---|---|
-| 公式 | Node.js / TypeScript / Neovim などの公式ブログと GitHub リリース(3日以内の新着) |
-| あなた向け | 関心キーワードに当たった記事を人気順に10件。日本語の記事を最低3件確保する |
-| 話題 | 関心の外だが、各プラットフォームで上位3%に入る記事 |
-| 発見 | 関心の外から、そこそこ人気の記事を日替わりでランダムに |
-| 新しいリポジトリ | 直近7日に作られ、スターを集めている GitHub リポジトリ |
+Issues and pull requests are welcome, especially new sources and UI translations. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-- 前日までに表示した記事は出しません。人気度が大きく伸びたものだけ「再浮上」として1度だけ戻します
-- 1つのセクションを1つのプラットフォームが埋めないよう、上限(40%)を設けています
+## 📄 License
 
-カードのボタン:
-
-- 👍 いいね(今は記録だけ。将来、並べ替えの学習に使う予定)
-- 🔖 あとで読む(「あとで」タブに保存)
-- 🚫 ミュート(サイトやキーワードを選んで非表示にする。「ミュート」タブで解除できる)
-
-ミュートは、そのセクションの予備の記事で埋めるので、件数は減りません。解除すればすぐに戻ります。
-右上の再読み込みボタンは、最新の `feed.json` を読み直します(収集し直すのは Actions です)。
-
-ライト/ダークは OS の設定に従います。右上のボタンで、システム → ライト → ダーク と切り替えられます。
-
-## 関心の設定
-
-`config/interests.yaml` にトピックとキーワードを書きます。
-
-```yaml
-topics:
-  neovim:
-    weight: 1.0
-    keywords: [neovim, nvim, lua]
-mute:
-  keywords: [web3]
-  domains: []
-```
-
-- タイトルとタグに対して照合します
-- 英数字のキーワードは単語単位("go" は "google" に当たらない)、日本語は部分一致です
-
-情報源の追加・停止や、各セクションの件数は `config/sources.yaml` で変えられます。
-
-## 人気度の出し方
-
-プラットフォームごとに単位が違う人気指標(HN の points、はてブのブクマ数、Zenn のいいね数…)を、
-**「そのプラットフォームの直近14日の記事の中で上から何%か」**(パーセンタイル)に変換して比べます。
-同じ記事が複数のプラットフォームに出ていれば、少し加点します。
-
-## 情報源と取得の作法
-
-| 情報源 | 取得方法 | 人気指標 |
-|---|---|---|
-| Hacker News | Algolia API(フロントページ) | points |
-| はてなブックマーク | テクノロジー人気エントリー RSS | ブクマ数 |
-| Zenn | 公開 JSON(デイリー) | いいね |
-| Qiita | 公式 API v2 | いいね |
-| dev.to | 公式 API | リアクション |
-| Lobsters | hottest.json | score |
-| Hugging Face | Daily Papers API | upvotes |
-| GitHub | Search API(新しいリポジトリ)/ Releases API | stars |
-| 公式ブログ | 各公式 RSS | なし |
-
-- HTML のスクレイピングはしません。公式 API と RSS だけを使います
-- 同じホストへのリクエストは順番に1件ずつ送り、間隔をあけます(はてなは robots.txt の Crawl-delay に合わせて5秒)
-- 独自の User-Agent を名乗ります
-- 1日2回だけ取得します
-- 公開するのはタイトル・リンク・人気指標だけで、本文は載せません
-- 個人で使う前提です。不特定多数に向けたサービスとして公開すると、各サービスの規約や著作権の扱いが変わるので注意してください
-
-任意の環境変数:
-
-- `GITHUB_TOKEN` … GitHub API のレート制限を緩める(なくても動く。Actions では自動で渡す)
-- `QIITA_TOKEN` … Qiita API のレート制限を緩める(なくても動く。Actions ではリポジトリの Secrets に登録すると使われる)
-- `TZ` … 「今日」の区切りに使うタイムゾーン(Actions では `Asia/Tokyo`)
-- `PORT` … `npm run preview` のポート(初期値は `8787`)
-
-## セキュリティ
-
-サーバーを持たない静的サイトなので、攻撃される入口はほとんどありません。そのうえで次の対策を入れています。
-
-| 想定する脅威 | 対策 |
-|---|---|
-| XSS | 外部のタイトル等は `textContent` でのみ描画、http(s)以外のURLはリンクにしない、CSP(meta)でインラインスクリプトと外部への通信を禁止 |
-| 悪意ある・壊れたフィード | DTD付きXMLを拒否(エンティティ展開攻撃対策)、レスポンスは10MBまで、型の合わない値は捨てる |
-| 壊れた localStorage | 読み込むときに型を確かめ、合わない値は捨てる |
-| 相手サイトへの過剰アクセス | 取得は1日2回、同時実行しない。同じホストへは直列・間隔をあけて取得 |
-| 情報の公開 | 公開するのは今日の `feed.json` だけ。スコア履歴や表示済みリストは Actions のキャッシュに置き、サイトには載せない |
-| サプライチェーン | 依存は2つのみ、`npm ci --ignore-scripts`、`GITHUB_TOKEN` は読み取りのみ(公開ジョブだけ Pages への書き込み権限) |
-
-## データ
-
-`data/` 以下に JSON で保存します(Git の管理対象外。Actions ではキャッシュに保存します)。
-
-- `feed.json` … 今日のページ(これだけが公開される)
-- `scores/YYYY-MM-DD.json` … パーセンタイル計算用のスコア履歴(14日で自動削除)
-- `seen.json` … 表示済みの記事(30日で自動削除)
-
-## 開発
-
-```sh
-npm run check   # 型チェック + テスト
-```
+[MIT](LICENSE) © kamegoro

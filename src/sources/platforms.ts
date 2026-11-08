@@ -1,6 +1,6 @@
 /**
- * 人気指標のあるプラットフォームからの取得。すべて公式API / RSS / 公開JSONのみ。
- * 各関数は独立して失敗できる(1つ落ちても他は続行する)。
+ * Sources with a popularity signal. Official APIs, RSS and public JSON only.
+ * Each fetcher may fail on its own; the others carry on.
  */
 import { fetchJson, fetchText, githubHeaders } from '../http.ts';
 import { parseFeed } from '../feed-parser.ts';
@@ -10,7 +10,7 @@ function isoDaysAgo(days: number, now: Date): string {
   return new Date(now.getTime() - days * 86_400_000).toISOString();
 }
 
-// --- Hacker News (Algolia API: フロントページ) ---
+// --- Hacker News (Algolia API: front page) ---
 interface HnHit {
   objectID: string;
   title: string;
@@ -29,7 +29,7 @@ export async function fetchHackerNews(): Promise<RawItem[]> {
     return {
       source: 'hackernews',
       title: h.title,
-      // Ask HN などリンク先がないものは議論ページそのものを記事とする
+      // Posts without a link (Ask HN etc.) use the discussion page as the article
       url: h.url ?? discussionUrl,
       discussionUrl: h.url ? discussionUrl : undefined,
       score: h.points,
@@ -40,8 +40,11 @@ export async function fetchHackerNews(): Promise<RawItem[]> {
   });
 }
 
-// --- はてなブックマーク テクノロジー人気エントリー (RSS) ---
-/** はてブのコメントページ。https の記事は /entry/s/、http の記事は /entry/ になる */
+// --- Hatena Bookmark: popular entries in Technology (RSS) ---
+/** Hatena's own "Technology" category label; every entry in this feed has it, so it's not a useful tag */
+const HATENA_TECH_CATEGORY = '\u30c6\u30af\u30ce\u30ed\u30b8\u30fc';
+
+/** Hatena's comment page: /entry/s/ for https articles, /entry/ for http ones */
 export function hatenaEntryUrl(link: string): string {
   if (link.startsWith('https://')) return `https://b.hatena.ne.jp/entry/s/${link.slice('https://'.length)}`;
   return `https://b.hatena.ne.jp/entry/${link.replace(/^http:\/\//, '')}`;
@@ -56,12 +59,12 @@ export async function fetchHatena(): Promise<RawItem[]> {
     discussionUrl: hatenaEntryUrl(e.link),
     score: e.bookmarkCount,
     scoreLabel: 'users',
-    tags: e.categories.filter((c) => c !== 'テクノロジー'),
+    tags: e.categories.filter((c) => c !== HATENA_TECH_CATEGORY),
     publishedAt: e.publishedAt,
   }));
 }
 
-// --- Zenn (公開JSON: デイリートレンド) ---
+// --- Zenn (public JSON: daily trend) ---
 interface ZennArticle {
   title: string;
   path: string;
@@ -85,7 +88,7 @@ export async function fetchZenn(): Promise<RawItem[]> {
   }));
 }
 
-// --- Qiita (公式API v2: 直近3日でストックが付いた記事) ---
+// --- Qiita (API v2: articles from the last 3 days that people saved) ---
 interface QiitaItem {
   title: string;
   url: string;
@@ -113,7 +116,7 @@ export async function fetchQiita(now: Date): Promise<RawItem[]> {
   }));
 }
 
-// --- dev.to (Forem API: 直近1日のトップ) ---
+// --- dev.to (Forem API: top of the last day) ---
 interface DevtoArticle {
   title: string;
   url: string;
@@ -179,7 +182,7 @@ export async function fetchHuggingFace(): Promise<RawItem[]> {
   }));
 }
 
-// --- GitHub: 直近7日に作られたリポジトリのスター上位 (Search API) ---
+// --- GitHub: most-starred repositories created in the last 7 days (Search API) ---
 interface GithubRepo {
   full_name: string;
   html_url: string;

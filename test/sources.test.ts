@@ -5,7 +5,7 @@ import { classifyRelease } from '../src/sources/official.ts';
 import { hatenaEntryUrl } from '../src/sources/platforms.ts';
 
 describe('parseFeed', () => {
-  it('はてブのRSS 1.0から、数値文字参照の日本語・ブクマ数・タグを読む', () => {
+  it('reads Hatena RSS 1.0: escaped Japanese text, bookmark counts and tags', () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/"
   xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:hatena="http://www.hatena.ne.jp/info/xmlns#">
@@ -29,7 +29,7 @@ describe('parseFeed', () => {
     ]);
   });
 
-  it('RSS 2.0(CDATAのタイトル、単一のitem)', () => {
+  it('reads RSS 2.0 (CDATA title, a single item)', () => {
     const xml = `<rss version="2.0"><channel><title>Node.js Blog</title>
 <item><title><![CDATA[Node.js 27 <Alpha>]]></title><link>https://nodejs.org/en/blog/x</link>
 <pubDate>Sun, 08 Nov 2026 08:52:35 GMT</pubDate><category>release</category></item>
@@ -45,7 +45,7 @@ describe('parseFeed', () => {
     ]);
   });
 
-  it('Atom(alternateリンクとcategoryのterm)', () => {
+  it('reads Atom (alternate link, category term)', () => {
     const xml = `<feed xmlns="http://www.w3.org/2005/Atom">
 <entry><title>v0.12.0</title>
 <link rel="replies" href="https://example.com/comments"/>
@@ -58,13 +58,13 @@ describe('parseFeed', () => {
     assert.equal(entry?.publishedAt, '2026-11-01T00:00:00.000Z');
   });
 
-  it('未対応の形式はエラーにする', () => {
+  it('throws on unsupported formats', () => {
     assert.throws(() => parseFeed('<html></html>'));
   });
 });
 
 describe('classifyRelease', () => {
-  it('バージョン番号からメジャー/マイナー/パッチを判定する', () => {
+  it('tells major, minor and patch apart from the version', () => {
     assert.equal(classifyRelease('v27.0.0'), 'major');
     assert.equal(classifyRelease('v1.65.0'), 'minor');
     assert.equal(classifyRelease('v0.11.5'), 'patch');
@@ -73,7 +73,7 @@ describe('classifyRelease', () => {
 });
 
 describe('hatenaEntryUrl', () => {
-  it('https と http でコメントページのパスが変わる', () => {
+  it('uses different comment paths for https and http', () => {
     assert.equal(hatenaEntryUrl('https://example.com/a'), 'https://b.hatena.ne.jp/entry/s/example.com/a');
     assert.equal(hatenaEntryUrl('http://example.com/a'), 'https://b.hatena.ne.jp/entry/example.com/a');
   });

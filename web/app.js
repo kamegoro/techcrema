@@ -1,21 +1,21 @@
-// Tech Catchup のブラウザ側。外部から来たタイトル等は必ず textContent で入れる(innerHTMLは使わない)。
+// Tech Catchup in the browser. Text from outside (titles etc.) only ever goes in via textContent, never innerHTML.
+import { formatDate, formatTime, getLanguage, setLanguage, t, timeAgo, translateDocument } from './i18n.js';
 
 const SOURCE_LABELS = {
   hackernews: 'HN',
-  hatena: 'はてブ',
+  hatena: 'Hatena',
   zenn: 'Zenn',
   qiita: 'Qiita',
   devto: 'dev.to',
   lobsters: 'Lobsters',
   huggingface: 'HF Papers',
   github_new_repos: 'GitHub',
-  official: '公式',
+  official: 'Official',
   github_release: 'Release',
 };
 const LANG_LABELS = { ja: 'JP', en: 'EN', zh: 'ZH' };
-const RELEASE_LABELS = { major: 'メジャー', minor: 'マイナー', patch: 'パッチ' };
 const STATE_KEY = 'tc-state-v1';
-/** 既読・いいねの記録はこの件数まで(古いものから捨てる)。localStorageの容量を食い潰さないため */
+/** Keep at most this many read/liked keys (oldest dropped first) so localStorage doesn't fill up */
 const MAX_KEYS = 3000;
 const MAX_LATER = 300;
 
@@ -33,7 +33,7 @@ let loadError = null;
 const $ = (id) => document.getElementById(id);
 
 // ---------------------------------------------------------------------------
-// DOMヘルパー
+// DOM helpers
 // ---------------------------------------------------------------------------
 function h(tag, props = {}, ...children) {
   const el = document.createElement(tag);
@@ -55,12 +55,12 @@ function icon(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('aria-hidden', 'true');
-  // ICONS は自前の定数なので innerHTML で問題ない
+  // ICONS are our own constants, so innerHTML is safe here
   svg.innerHTML = ICONS[name];
   return svg;
 }
 
-/** http(s) 以外のURL(javascript: など)はリンクにしない */
+/** Only http(s) URLs become links (never javascript: etc.) */
 function safeUrl(url) {
   try {
     const u = new URL(url);
@@ -76,24 +76,8 @@ function formatScore(n) {
   return String(n);
 }
 
-function timeAgo(iso) {
-  if (!iso) return '';
-  const diff = (Date.now() - Date.parse(iso)) / 1000;
-  if (Number.isNaN(diff)) return '';
-  if (diff < 60) return 'たった今';
-  if (diff < 3600) return `${Math.floor(diff / 60)}分前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}時間前`;
-  if (diff < 86400 * 30) return `${Math.floor(diff / 86400)}日前`;
-  return new Date(iso).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
-}
-
-function formatDate(ymd) {
-  const [y, m, d] = ymd.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
-}
-
 // ---------------------------------------------------------------------------
-// 状態(いいね・既読・あとで・ミュート)はこのブラウザの localStorage に保存する
+// State (likes, read, later, mutes) lives in this browser's localStorage
 // ---------------------------------------------------------------------------
 function emptyUserState() {
   return { liked: [], read: [], later: [], mute: { keywords: [], domains: [] } };
@@ -103,7 +87,7 @@ function strings(v) {
   return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.length > 0 && x.length <= 2048) : [];
 }
 
-/** 壊れた値や古い形式が入っていても動くように、型を確かめながら読む */
+/** Checks every type while reading, so corrupted or outdated data can't break the page */
 function loadState() {
   try {
     const raw = JSON.parse(localStorage.getItem(STATE_KEY) ?? 'null');
@@ -127,12 +111,12 @@ function saveState() {
   try {
     localStorage.setItem(STATE_KEY, JSON.stringify(s));
   } catch {
-    toast('このブラウザに保存できませんでした(プライベートモードでは保存されません)');
+    toast(t('save.failed'));
   }
 }
 
 // ---------------------------------------------------------------------------
-// ミュートの判定(src/rank.ts の keywordMatcher / isMuted と同じルール)
+// Mute matching (same rules as keywordMatcher / isMuted in src/rank.ts)
 // ---------------------------------------------------------------------------
 function keywordMatcher(keyword) {
   const k = keyword.trim().toLowerCase();
@@ -152,7 +136,7 @@ function isMuted(story, mute) {
   return mute.keywords.some((k) => keywordMatcher(k)(text));
 }
 
-/** ミュートを除いたうえで、各セクションの表示件数(limit)だけ残す */
+/** Drops muted stories, then keeps the first `limit` of each section */
 function visibleSections(feed) {
   const mute = data.state.mute;
   return feed.sections.map((s) => ({
@@ -162,7 +146,7 @@ function visibleSections(feed) {
 }
 
 // ---------------------------------------------------------------------------
-// フィードの読み込み(GitHub Actions が定期的に作った feed.json を読むだけ)
+// Loading the feed (just the feed.json that GitHub Actions publishes on schedule)
 // ---------------------------------------------------------------------------
 async function load({ manual = false } = {}) {
   data.loading = true;
@@ -170,13 +154,18 @@ async function load({ manual = false } = {}) {
   const before = data.feed?.generatedAt;
   try {
     const res = await fetch('./feed.json', { cache: 'no-cache' });
-    if (!res.ok) throw new Error(res.status === 404 ? 'まだフィードが作られていません' : `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(res.status === 404 ? t('load.missing') : `HTTP ${res.status}`);
     data.feed = await res.json();
     loadError = null;
-    if (manual) toast(data.feed.generatedAt === before ? '最新の状態です' : '更新しました');
+    if (setLanguage(data.feed.language)) translateDocument();
+    if (data.feed.title) {
+      document.title = data.feed.title;
+      document.querySelector('.brand-title').textContent = data.feed.title;
+    }
+    if (manual) toast(t(data.feed.generatedAt === before ? 'load.latest' : 'load.updated'));
   } catch (err) {
     loadError = err;
-    if (manual) toast(`読み込めませんでした: ${err.message}`);
+    if (manual) toast(t('load.failed', { message: err.message }));
   }
   data.loading = false;
   render();
@@ -188,7 +177,7 @@ function act(action, story) {
   const toggle = (list, on) => (on ? [...list.filter((k) => k !== key), key] : list.filter((k) => k !== key));
   if (action === 'like' || action === 'unlike') s.liked = toggle(s.liked, action === 'like');
   if (action === 'read') s.read = toggle(s.read, true);
-  // フィードが翌日に入れ替わっても見られるよう、記事そのものを保存する
+  // Save the whole story so it is still there after the feed changes tomorrow
   if (action === 'later') s.later = [story, ...s.later.filter((x) => x.key !== key)];
   if (action === 'unlater') s.later = s.later.filter((x) => x.key !== key);
   saveState();
@@ -201,8 +190,8 @@ function mute(rules, { undo = true } = {}) {
   m.keywords = [...new Set([...m.keywords, ...rules.keywords])];
   saveState();
   render();
-  const label = [...rules.domains, ...rules.keywords].join('、');
-  toast(`「${label}」をミュートしました`, undo ? { label: '元に戻す', run: () => unmute(rules, { quiet: true }) } : undefined);
+  const label = [...rules.domains, ...rules.keywords].join(t('list.separator'));
+  toast(t('mute.done', { label }), undo ? { label: t('mute.undo'), run: () => unmute(rules, { quiet: true }) } : undefined);
 }
 
 function unmute(rules, { quiet = false } = {}) {
@@ -211,11 +200,11 @@ function unmute(rules, { quiet = false } = {}) {
   m.keywords = m.keywords.filter((k) => !rules.keywords.includes(k));
   saveState();
   render();
-  if (!quiet) toast('ミュートを解除しました');
+  if (!quiet) toast(t('mute.removed'));
 }
 
 // ---------------------------------------------------------------------------
-// トースト
+// Toast
 // ---------------------------------------------------------------------------
 let toastTimer = null;
 function toast(text, action) {
@@ -237,10 +226,9 @@ function toast(text, action) {
 }
 
 // ---------------------------------------------------------------------------
-// テーマ(システム → ライト → ダーク の順に切り替え)
+// Theme (cycles system → light → dark)
 // ---------------------------------------------------------------------------
 const THEME_ORDER = ['system', 'light', 'dark'];
-const THEME_LABELS = { system: 'システム', light: 'ライト', dark: 'ダーク' };
 
 function currentTheme() {
   try {
@@ -256,8 +244,8 @@ function applyTheme(mode) {
   else document.documentElement.dataset.theme = mode;
   const btn = $('theme');
   btn.dataset.mode = mode;
-  btn.setAttribute('aria-label', `テーマ: ${THEME_LABELS[mode]}(タップで切り替え)`);
-  // ブラウザのUI色(スマホのアドレスバー)も合わせる
+  btn.setAttribute('aria-label', t('theme.label', { mode: t(`theme.${mode}`) }));
+  // Match the browser UI color (the address bar on phones)
   const dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
     meta.setAttribute('content', dark ? '#0e1014' : '#f5f6f8');
@@ -271,11 +259,11 @@ function cycleTheme() {
     else localStorage.setItem('theme', next);
   } catch {}
   applyTheme(next);
-  toast(`テーマ: ${THEME_LABELS[next]}`);
+  toast(t('theme.toast', { mode: t(`theme.${next}`) }));
 }
 
 // ---------------------------------------------------------------------------
-// 描画
+// Rendering
 // ---------------------------------------------------------------------------
 function currentTab() {
   const tab = location.hash.replace('#', '');
@@ -286,8 +274,7 @@ function renderHeader() {
   const { feed, loading } = data;
   const meta = $('meta');
   if (feed) {
-    const time = new Date(feed.generatedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-    meta.textContent = `${formatDate(feed.date)} · ${time} 更新`;
+    meta.textContent = t('updated', { date: formatDate(feed.date), time: formatTime(feed.generatedAt) });
   } else meta.textContent = '';
 
   const refreshBtn = $('refresh');
@@ -312,7 +299,7 @@ function renderSectionNav(sections) {
   const nav = $('section-nav');
   nav.replaceChildren(
     ...sections.map((s) =>
-      h('a', { class: 'chip', href: `#section-${s.id}`, onclick: (e) => jumpTo(e, s.id) }, s.title, h('span', { class: 'chip-count' }, s.stories.length)),
+      h('a', { class: 'chip', href: `#section-${s.id}`, onclick: (e) => jumpTo(e, s.id) }, t(`section.${s.id}`), h('span', { class: 'chip-count' }, s.stories.length)),
     ),
   );
 }
@@ -326,7 +313,7 @@ function jumpTo(event, id) {
 }
 
 function sourceBadge(a) {
-  const label = SOURCE_LABELS[a.source] ?? a.source;
+  const label = a.source === 'hatena' || a.source === 'official' ? t(`source.${a.source}`) : (SOURCE_LABELS[a.source] ?? a.source);
   const children = [h('span', { class: 'badge-dot' }), label];
   if (a.score !== null && a.score !== undefined) {
     children.push(h('span', { class: 'badge-score' }, formatScore(a.score)));
@@ -344,7 +331,7 @@ function sourceBadge(a) {
         target: '_blank',
         rel: 'noopener noreferrer',
         dataset: { source: a.source },
-        'aria-label': `${label}の議論ページ(${a.score ?? ''} ${a.scoreLabel ?? ''})`,
+        'aria-label': t('discussion', { source: label, score: `${a.score ?? ''} ${a.scoreLabel ?? ''}`.trim() }),
       },
       ...children,
     );
@@ -366,12 +353,12 @@ function card(story) {
     story.publisher && story.appearances.every((a) => a.source === 'official')
       ? h('span', { class: 'badge badge-publisher' }, story.publisher)
       : null,
-    story.releaseKind && RELEASE_LABELS[story.releaseKind]
-      ? h('span', { class: `badge${story.releaseKind === 'major' ? ' badge-accent' : ''}` }, RELEASE_LABELS[story.releaseKind])
+    ['major', 'minor', 'patch'].includes(story.releaseKind)
+      ? h('span', { class: `badge${story.releaseKind === 'major' ? ' badge-accent' : ''}` }, t(`release.${story.releaseKind}`))
       : null,
-    story.groupedCount ? h('span', { class: 'badge' }, `ほか${story.groupedCount}件`) : null,
-    story.resurfaced ? h('span', { class: 'badge badge-accent' }, '再浮上') : null,
-    h('span', { class: 'badge badge-lang', title: '言語' }, LANG_LABELS[story.lang] ?? story.lang),
+    story.groupedCount ? h('span', { class: 'badge' }, t('grouped', { n: story.groupedCount })) : null,
+    story.resurfaced ? h('span', { class: 'badge badge-accent' }, t('resurfaced')) : null,
+    h('span', { class: 'badge badge-lang', title: t('language') }, LANG_LABELS[story.lang] ?? story.lang),
   );
 
   const title = h(
@@ -399,8 +386,8 @@ function card(story) {
         class: 'action action-like',
         type: 'button',
         'aria-pressed': String(liked),
-        'aria-label': liked ? 'いいねを取り消す' : 'いいね',
-        title: 'いいね',
+        'aria-label': t(liked ? 'unlike' : 'like'),
+        title: t('like'),
         onclick: () => act(liked ? 'unlike' : 'like', story),
       },
       icon('like'),
@@ -411,15 +398,15 @@ function card(story) {
         class: 'action action-later',
         type: 'button',
         'aria-pressed': String(later),
-        'aria-label': later ? 'あとで読むから外す' : 'あとで読む',
-        title: 'あとで読む',
+        'aria-label': t(later ? 'unlater' : 'later'),
+        title: t('later'),
         onclick: () => act(later ? 'unlater' : 'later', story),
       },
       icon('later'),
     ),
     h(
       'button',
-      { class: 'action', type: 'button', 'aria-label': 'ミュート', title: 'ミュート', onclick: () => openMuteSheet(story) },
+      { class: 'action', type: 'button', 'aria-label': t('mute'), title: t('mute'), onclick: () => openMuteSheet(story) },
       icon('mute'),
     ),
   );
@@ -435,7 +422,7 @@ function renderToday(main) {
   const { feed } = data;
   if (!feed) {
     if (loadError) {
-      main.append(emptyState('フィードを読み込めません', loadError.message));
+      main.append(emptyState(t('load.failedTitle'), loadError.message));
       return;
     }
     main.append(h('ul', { class: 'cards', 'aria-hidden': 'true' }, [1, 2, 3].map(() => h('li', { class: 'skeleton' }))));
@@ -445,7 +432,7 @@ function renderToday(main) {
   const sections = visibleSections(feed).filter((s) => s.stories.length > 0);
   renderSectionNav(sections);
   if (sections.length === 0) {
-    main.append(emptyState('今日の新着はありません', '次の自動更新をお待ちください'));
+    main.append(emptyState(t('empty.today'), t('empty.today.text')));
   }
   for (const section of sections) {
     main.append(
@@ -455,16 +442,16 @@ function renderToday(main) {
         h(
           'div',
           { class: 'section-header' },
-          h('h2', { class: 'section-title', id: `title-${section.id}`, tabindex: '-1' }, section.title),
-          h('p', { class: 'section-description' }, section.description),
+          h('h2', { class: 'section-title', id: `title-${section.id}`, tabindex: '-1' }, t(`section.${section.id}`)),
+          h('p', { class: 'section-description' }, t(`section.${section.id}.desc`, { days: feed.officialDays ?? 3 })),
         ),
-        // 公式と新しいリポジトリは「見出しだけ確認できればいい」ので詰めて表示する
+        // Official and New repos only need a glance at the headline, so they use a compact layout
         h('ul', { class: `cards${section.id === 'official' || section.id === 'repos' ? ' cards-compact' : ''}` }, section.stories.map(card)),
       ),
     );
   }
   if (feed.errors.length) {
-    main.append(h('p', { class: 'notice' }, `取得できなかった情報源: ${feed.errors.map((e) => e.source).join('、')}`));
+    main.append(h('p', { class: 'notice' }, t('errors', { sources: feed.errors.map((e) => e.source).join(t('list.separator')) })));
   }
 }
 
@@ -472,7 +459,7 @@ function renderLater(main) {
   $('section-nav').replaceChildren();
   const list = data.state.later;
   if (list.length === 0) {
-    main.append(emptyState('「あとで読む」は空です', 'カードのしおりボタンで追加できます'));
+    main.append(emptyState(t('empty.later'), t('empty.later.text')));
     return;
   }
   main.append(h('section', { class: 'section' }, h('ul', { class: 'cards' }, list.map(card))));
@@ -484,7 +471,7 @@ function renderSettings(main) {
   const items = [...domains.map((v) => ({ kind: 'domain', value: v })), ...keywords.map((v) => ({ kind: 'keyword', value: v }))];
   const section = h('section', { class: 'section' });
   if (items.length === 0) {
-    section.append(emptyState('ミュートはありません', 'カードのミュートボタンから追加できます'));
+    section.append(emptyState(t('empty.mute'), t('empty.mute.text')));
   } else {
     section.append(
       h(
@@ -494,7 +481,7 @@ function renderSettings(main) {
           h(
             'li',
             { class: 'mute-item' },
-            h('span', { class: 'mute-item-label' }, h('span', { class: 'mute-kind' }, item.kind === 'domain' ? 'サイト' : 'キーワード'), item.value),
+            h('span', { class: 'mute-item-label' }, h('span', { class: 'mute-kind' }, t(`mute.kind.${item.kind}`)), item.value),
             h(
               'button',
               {
@@ -502,19 +489,14 @@ function renderSettings(main) {
                 type: 'button',
                 onclick: () => unmute(item.kind === 'domain' ? { domains: [item.value], keywords: [] } : { keywords: [item.value], domains: [] }),
               },
-              '解除',
+              t('mute.unmute'),
             ),
           ),
         ),
       ),
     );
   }
-  const help = h('p', { class: 'help' });
-  help.append(
-    'ミュート・いいね・あとで読むは、このブラウザにだけ保存されます(他の端末とは共有されません)。関心のあるトピックやキーワードは、リポジトリの ',
-    h('code', {}, 'config/interests.yaml'),
-    ' で編集できます。',
-  );
+  const help = h('p', { class: 'help' }, t('mute.help'));
   section.append(help);
   main.append(section);
 }
@@ -530,19 +512,19 @@ function render() {
 }
 
 // ---------------------------------------------------------------------------
-// ミュートのシート
+// Mute sheet
 // ---------------------------------------------------------------------------
 function openMuteSheet(story) {
   const dialog = $('mute-sheet');
   $('mute-story').textContent = story.title;
   $('mute-custom').value = '';
   const options = [];
-  if (story.domain) options.push({ kind: 'domain', value: story.domain, label: `サイト: ${story.domain}` });
+  if (story.domain) options.push({ kind: 'domain', value: story.domain, label: t('mute.option.domain', { value: story.domain }) });
   const keywords = [...new Set([...story.matchedKeywords, ...story.tags])].slice(0, 8);
-  for (const k of keywords) options.push({ kind: 'keyword', value: k, label: `キーワード: ${k}` });
+  for (const k of keywords) options.push({ kind: 'keyword', value: k, label: t('mute.option.keyword', { value: k }) });
 
   $('mute-options').replaceChildren(
-    h('legend', { class: 'field-label' }, '候補'),
+    h('legend', { class: 'field-label' }, t('mute.candidates')),
     ...options.map((o) =>
       h(
         'label',
@@ -558,7 +540,7 @@ function openMuteSheet(story) {
 
 function setupMuteSheet() {
   const dialog = $('mute-sheet');
-  // シートの外(背景)をタップしたら閉じる
+  // Tapping outside the sheet (the backdrop) closes it
   dialog.addEventListener('click', (e) => {
     if (e.target === dialog) dialog.close('cancel');
   });
@@ -567,12 +549,12 @@ function setupMuteSheet() {
     const checked = [...dialog.querySelectorAll('input[type="checkbox"]:checked')];
     const domains = checked.filter((i) => i.name === 'domain').map((i) => i.value);
     const custom = $('mute-custom')
-      .value.split(/[,、]/)
+      .value.split(/[,\u3001]/) // ASCII comma or the Japanese comma
       .map((s) => s.trim())
       .filter(Boolean);
     const keywords = [...checked.filter((i) => i.name === 'keyword').map((i) => i.value), ...custom];
     if (domains.length + keywords.length === 0) {
-      toast('ミュートする対象が選ばれていません');
+      toast(t('mute.none'));
       return;
     }
     mute({ domains, keywords });
@@ -580,8 +562,9 @@ function setupMuteSheet() {
 }
 
 // ---------------------------------------------------------------------------
-// 起動
+// Startup
 // ---------------------------------------------------------------------------
+translateDocument();
 applyTheme(currentTheme());
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(currentTheme()));
 $('theme').addEventListener('click', cycleTheme);
@@ -590,11 +573,11 @@ window.addEventListener('hashchange', () => {
   render();
   window.scrollTo(0, 0);
 });
-// アプリに戻ってきたとき(通勤中に開き直したときなど)に最新を取る
+// Reload when the app comes back to the foreground (e.g. reopened on the commute)
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') load();
 });
-// 別のタブでミュートなどを変えたら反映する
+// Pick up mutes etc. changed in another tab
 window.addEventListener('storage', (e) => {
   if (e.key !== STATE_KEY) return;
   data.state = loadState();

@@ -1,75 +1,34 @@
+# This repository's own page, built with the action in this repository (uses: ./).
+# To make your own page, copy examples/workflow.yml instead — see README.md.
 name: Update feed
 
 on:
   schedule:
-    # 日本時間の 6:00 と 17:00(cron は UTC で書く)
-    - cron: '0 21 * * *'
-    - cron: '0 8 * * *'
-  # Actions タブの「Run workflow」から手動で更新する
+    - cron: '0 21 * * *' # 06:00 JST
+    - cron: '0 8 * * *' # 17:00 JST
   workflow_dispatch:
-  # 画面やコードを変えたときは、収集せずに今のフィードのまま公開し直す
-  push:
-    branches: [main]
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
-# 同時に2つ走らせない(収集が重なると相手サイトへのアクセスも重なるため)
+# Never collect twice at the same time (that would double the requests to every source)
 concurrency:
   group: pages
   cancel-in-progress: false
 
-env:
-  # 「今日」の区切りと表示の日付に使うタイムゾーン
-  TZ: Asia/Tokyo
-
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.catchup.outputs.page_url }}
     steps:
       - uses: actions/checkout@main
         with:
           persist-credentials: false
-      - uses: actions/setup-node@main
+      - id: catchup
+        uses: ./
         with:
-          node-version: 26
-          cache: npm
-      - run: npm ci --ignore-scripts
-
-      # 人気度の履歴(直近14日)と表示済みの記事を、前回の実行から引き継ぐ
-      - uses: actions/cache/restore@main
-        with:
-          path: data
-          key: data-${{ github.run_id }}
-          restore-keys: data-
-
-      - name: Collect
-        if: github.event_name != 'push' || hashFiles('data/feed.json') == ''
-        run: npm run collect
-        env:
-          # GitHub API のレート制限を緩めるため(読み取りのみ)
-          GITHUB_TOKEN: ${{ github.token }}
-          QIITA_TOKEN: ${{ secrets.QIITA_TOKEN }}
-
-      - uses: actions/cache/save@main
-        with:
-          path: data
-          key: data-${{ github.run_id }}-${{ github.run_attempt }}
-
-      - run: npm run build
-      - uses: actions/upload-pages-artifact@main
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@main
+          qiita-token: ${{ secrets.QIITA_TOKEN }}

@@ -1,18 +1,18 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <!-- GitHub Pages ではレスポンスヘッダーを設定できないので、CSPは meta で指定する -->
+    <!-- GitHub Pages cannot set response headers, so the CSP lives in a meta tag -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'"
     />
     <meta name="referrer" content="no-referrer" />
-    <!-- 個人用のページなので検索エンジンに載せない -->
+    <!-- A personal page: keep it out of search engines -->
     <meta name="robots" content="noindex, nofollow" />
     <title>Tech Catchup</title>
-    <meta name="description" content="人気かつ自分の関心に合う技術記事を毎日1ページに" />
+    <meta name="description" content="Trending tech stories that match your interests, on one page a day" />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)" />
@@ -26,7 +26,7 @@
     <script type="module" src="./app.js"></script>
   </head>
   <body>
-    <a class="skip-link" href="#main">本文へ移動</a>
+    <a class="skip-link" href="#main" data-i18n="skip">Skip to content</a>
     <header class="app-header">
       <div class="header-inner">
         <div class="brand">
@@ -34,38 +34,38 @@
           <p class="brand-meta" id="meta" aria-live="polite"></p>
         </div>
         <div class="header-actions">
-          <button class="icon-button" id="refresh" type="button" aria-label="再読み込み" title="再読み込み">
+          <button class="icon-button" id="refresh" type="button" data-i18n-label="reload" aria-label="Reload" title="Reload">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg>
           </button>
-          <button class="icon-button" id="theme" type="button" aria-label="テーマ: システム" title="テーマ切り替え">
+          <button class="icon-button" id="theme" type="button" aria-label="Theme" title="Theme">
             <svg class="theme-icon theme-icon-system" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
             <svg class="theme-icon theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>
             <svg class="theme-icon theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
           </button>
         </div>
       </div>
-      <nav class="tabs" aria-label="表示切り替え">
-        <a class="tab" href="#today" data-tab="today">今日<span class="tab-count" id="count-today"></span></a>
-        <a class="tab" href="#later" data-tab="later">あとで<span class="tab-count" id="count-later"></span></a>
-        <a class="tab" href="#settings" data-tab="settings">ミュート<span class="tab-count" id="count-mute"></span></a>
+      <nav class="tabs" aria-label="Views">
+        <a class="tab" href="#today" data-tab="today" data-i18n="tab.today">Today<span class="tab-count" id="count-today"></span></a>
+        <a class="tab" href="#later" data-tab="later" data-i18n="tab.later">Later<span class="tab-count" id="count-later"></span></a>
+        <a class="tab" href="#settings" data-tab="settings" data-i18n="tab.mute">Muted<span class="tab-count" id="count-mute"></span></a>
       </nav>
-      <nav class="section-nav" id="section-nav" aria-label="セクション"></nav>
+      <nav class="section-nav" id="section-nav" aria-label="Sections"></nav>
     </header>
 
     <main id="main" class="content" tabindex="-1"></main>
 
     <dialog class="sheet" id="mute-sheet" aria-labelledby="mute-title">
       <form method="dialog" class="sheet-body" id="mute-form">
-        <h2 class="sheet-title" id="mute-title">何をミュートしますか?</h2>
+        <h2 class="sheet-title" id="mute-title" data-i18n="mute.title">What do you want to mute?</h2>
         <p class="sheet-subtitle" id="mute-story"></p>
         <fieldset class="mute-options" id="mute-options"></fieldset>
         <label class="field">
-          <span class="field-label">キーワードを追加</span>
-          <input class="field-input" id="mute-custom" type="text" placeholder="例: Rust, LLM" autocomplete="off" />
+          <span class="field-label" data-i18n="mute.custom">Add keywords</span>
+          <input class="field-input" id="mute-custom" type="text" placeholder="e.g. Rust, LLM" data-i18n-placeholder="mute.placeholder" autocomplete="off" />
         </label>
         <div class="sheet-actions">
-          <button class="button" value="cancel" type="submit" formnovalidate>キャンセル</button>
-          <button class="button button-primary" value="mute" type="submit" id="mute-submit">ミュートする</button>
+          <button class="button" value="cancel" type="submit" formnovalidate data-i18n="mute.cancel">Cancel</button>
+          <button class="button button-primary" value="mute" type="submit" id="mute-submit" data-i18n="mute.submit">Mute</button>
         </div>
       </form>
     </dialog>

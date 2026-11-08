@@ -1,0 +1,34 @@
+# Settings for this repository's own feed.
+# Every key is optional. Action inputs with the same name override these values.
+# See README.md#configuration for all options.
+
+language: ja # en | ja — UI language and the default set of sources
+
+# What you care about. A story matching any keyword lands in "For you".
+# ASCII keywords match whole words ("go" does not match "google"); others match as substrings.
+topics:
+  neovim: [neovim, nvim, vim, lua, lazy.nvim, treesitter, tree-sitter]
+  typescript: { weight: 0.9, keywords: [typescript, ts, deno, bun, tsgo] }
+  node: { weight: 0.9, keywords: [node.js, nodejs, node, npm, pnpm, v8] }
+  testing: [playwright, e2e, end-to-end, appium, webdriver, testing, テスト, 自動テスト]
+  ai-agent:
+    weight: 0.9
+    keywords: [claude, claude code, agent, agents, ai agent, mcp, llm, codex, エージェント, 生成ai]
+  engineering-management:
+    weight: 0.7
+    keywords: [engineering manager, engineering management, 1on1, 1on1s, マネジメント, エンジニアリングマネージャー, 組織, チームビルディング, 開発生産性, dora]
+
+# Never show these (title, tags or domain)
+mute:
+  keywords: [web3, crypto, nft, 求人, 採用情報, ポエム]
+
+# Official blogs (RSS/Atom) and GitHub releases, shown whenever there's something new
+official:
+  - Node.js https://nodejs.org/en/feed/blog.xml
+  - TypeScript https://devblogs.microsoft.com/typescript/feed/
+  - Neovim https://neovim.io/news.xml
+  - OpenAI https://openai.com/news/rss.xml
+  - neovim/neovim
+  - microsoft/playwright
+  - nodejs/node
+  - microsoft/TypeScript

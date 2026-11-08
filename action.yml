@@ -1,0 +1,108 @@
+name: Tech Catchup
+description: Publish a personal daily page of trending tech stories that match your interests to GitHub Pages. No server, no database, no AI.
+author: kamegoro
+branding:
+  icon: coffee
+  color: blue
+
+inputs:
+  language:
+    description: 'UI language and the default set of sources: en or ja'
+    required: false
+  topics:
+    description: 'What you care about, as YAML. e.g. "rust: [rust, cargo]" one per line'
+    required: false
+  sources:
+    description: 'Comma-separated sources (hackernews, lobsters, devto, huggingface, github, hatena, zenn, qiita). Defaults depend on language.'
+    required: false
+  official:
+    description: 'One per line: an RSS/Atom URL (optionally "Name URL") or a GitHub owner/repo for releases'
+    required: false
+  mute-keywords:
+    description: 'Comma-separated keywords to never show'
+    required: false
+  mute-domains:
+    description: 'Comma-separated domains to never show'
+    required: false
+  title:
+    description: 'Page title'
+    required: false
+  timezone:
+    description: 'IANA time zone that decides what "today" is (default: UTC for en, Asia/Tokyo for ja)'
+    required: false
+  config:
+    description: 'Path to a YAML file with the same settings. Inputs override it. Default: tech-catchup.yml if it exists.'
+    required: false
+  deploy:
+    description: 'Deploy to GitHub Pages. Set to false to only build (the site is uploaded as an artifact either way).'
+    required: false
+    default: 'true'
+  qiita-token:
+    description: 'Optional Qiita access token for a higher rate limit'
+    required: false
+  github-token:
+    description: 'Token for the GitHub API (new repos, releases). The default read-only token is enough.'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  page_url:
+    description: 'URL of the published page'
+    value: ${{ steps.deployment.outputs.page_url }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24
+
+    - name: Install
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+
+    # Score history (last 14 days) and the list of already-shown stories carry over between runs
+    - uses: actions/cache/restore@v6
+      with:
+        path: ${{ runner.temp }}/tech-catchup-data
+        key: tech-catchup-data-${{ github.run_id }}
+        restore-keys: tech-catchup-data-
+
+    - name: Collect
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        TECH_CATCHUP_DATA_DIR: ${{ runner.temp }}/tech-catchup-data
+        TECH_CATCHUP_CONFIG: ${{ inputs.config }}
+        TC_LANGUAGE: ${{ inputs.language }}
+        TC_TOPICS: ${{ inputs.topics }}
+        TC_SOURCES: ${{ inputs.sources }}
+        TC_OFFICIAL: ${{ inputs.official }}
+        TC_MUTE_KEYWORDS: ${{ inputs.mute-keywords }}
+        TC_MUTE_DOMAINS: ${{ inputs.mute-domains }}
+        TC_TITLE: ${{ inputs.title }}
+        TC_TIMEZONE: ${{ inputs.timezone }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        QIITA_TOKEN: ${{ inputs.qiita-token }}
+      run: node "$GITHUB_ACTION_PATH/src/collect.ts"
+
+    - uses: actions/cache/save@v6
+      with:
+        path: ${{ runner.temp }}/tech-catchup-data
+        key: tech-catchup-data-${{ github.run_id }}-${{ github.run_attempt }}
+
+    - name: Build
+      shell: bash
+      env:
+        TECH_CATCHUP_DATA_DIR: ${{ runner.temp }}/tech-catchup-data
+        TECH_CATCHUP_OUT_DIR: ${{ runner.temp }}/tech-catchup-site
+      run: node "$GITHUB_ACTION_PATH/src/build.ts"
+
+    - uses: actions/upload-pages-artifact@v5
+      with:
+        path: ${{ runner.temp }}/tech-catchup-site
+
+    - id: deployment
+      if: inputs.deploy == 'true'
+      uses: actions/deploy-pages@v5

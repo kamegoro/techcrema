@@ -1,0 +1,37 @@
+# Copy this file to .github/workflows/tech-catchup.yml in your repository,
+# then set Settings → Pages → Source to "GitHub Actions" and run it once from the Actions tab.
+name: Tech Catchup
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # every day at 06:00 UTC — change to suit your morning
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.catchup.outputs.page_url }}
+    steps:
+      - id: catchup
+        uses: kamegoro/tech-catchup@v1
+        with:
+          language: en
+          topics: |
+            rust: [rust, cargo]
+            databases: [postgres, sqlite, duckdb]
+            ai: { weight: 0.8, keywords: [llm, agents, mcp] }
+          official: |
+            https://blog.rust-lang.org/feed.xml
+            rust-lang/rust
+          mute-keywords: crypto, nft

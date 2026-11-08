@@ -4,41 +4,41 @@ import { detectLang, domainOf, mergeIntoStories, normalizeUrl } from '../src/nor
 import type { RawItem } from '../src/types.ts';
 
 describe('normalizeUrl', () => {
-  it('www・末尾スラッシュ・フラグメント・追跡パラメータを落とす', () => {
+  it('drops www, trailing slashes, fragments and tracking parameters', () => {
     assert.equal(normalizeUrl('https://www.Example.com/post/?utm_source=hn&fbclid=x#top'), 'example.com/post');
   });
 
-  it('意味のあるクエリは残し、順序を揃える', () => {
+  it('keeps meaningful query parameters, sorted', () => {
     assert.equal(normalizeUrl('https://example.com/a?b=2&a=1'), 'example.com/a?a=1&b=2');
   });
 
-  it('http と https は同じ記事として扱う', () => {
+  it('treats http and https as the same article', () => {
     assert.equal(normalizeUrl('http://example.com/a'), normalizeUrl('https://example.com/a'));
   });
 
-  it('パスの大文字小文字は保持する', () => {
+  it('keeps the case of the path', () => {
     assert.equal(normalizeUrl('https://example.com/Foo'), 'example.com/Foo');
   });
 
-  it('URLとして解釈できない文字列はそのまま小文字にする', () => {
+  it('lowercases strings that are not URLs', () => {
     assert.equal(normalizeUrl(' Not A URL '), 'not a url');
   });
 });
 
 describe('domainOf', () => {
-  it('www を除いたホスト名を返す', () => {
+  it('returns the host name without www', () => {
     assert.equal(domainOf('https://www.zenn.dev/x'), 'zenn.dev');
   });
 });
 
 describe('detectLang', () => {
-  it('かなを含めば日本語', () => {
+  it('kana means Japanese', () => {
     assert.equal(detectLang('Neovim 0.12 の新機能'), 'ja');
   });
-  it('漢字だけなら中国語', () => {
+  it('ideographs without kana mean Chinese', () => {
     assert.equal(detectLang('让你的命令行 Agent 在后台自己接活'), 'zh');
   });
-  it('それ以外は英語', () => {
+  it('anything else is English', () => {
     assert.equal(detectLang('Node.js 27 released'), 'en');
   });
 });
@@ -54,7 +54,7 @@ describe('mergeIntoStories', () => {
     ...over,
   });
 
-  it('同じ記事が複数プラットフォームにあれば1件にまとめ、出現を並べる', () => {
+  it('merges the same story across platforms and lists each appearance', () => {
     const stories = mergeIntoStories(
       [
         item({ source: 'hackernews', score: 300, tags: ['a'] }),
@@ -73,13 +73,13 @@ describe('mergeIntoStories', () => {
     assert.deepEqual(stories[0]!.tags, ['a', 'b']);
   });
 
-  it('同じプラットフォームの重複はスコアの高いほうを残す', () => {
+  it('keeps the higher score for duplicates on one platform', () => {
     const stories = mergeIntoStories([item({ score: 5 }), item({ score: 50 })], () => 0.5);
     assert.equal(stories[0]!.appearances.length, 1);
     assert.equal(stories[0]!.appearances[0]!.score, 50);
   });
 
-  it('タイトルかURLが空のものは捨てる', () => {
+  it('drops items without a title or URL', () => {
     assert.equal(mergeIntoStories([item({ title: '' }), item({ url: '' })], () => 0.5).length, 0);
   });
 });

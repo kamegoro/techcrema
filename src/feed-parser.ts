@@ -1,22 +1,22 @@
 import { XMLParser } from 'fast-xml-parser';
 
-/** RSS 2.0 / RSS 1.0(RDF) / Atom を共通の形にしたもの */
+/** RSS 2.0 / RSS 1.0 (RDF) / Atom entries in one common shape */
 export interface FeedEntry {
   title: string;
   link: string;
   publishedAt: string | null;
   categories: string[];
-  /** はてブRSSの hatena:bookmarkcount */
+  /** hatena:bookmarkcount from Hatena Bookmark's RSS */
   bookmarkCount: number | null;
 }
 
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
-  // 数値っぽいタイトルが数値化されないように、値の型変換はしない
+  // Don't convert values, so a title like "2048" stays a string
   parseTagValue: false,
   trimValues: true,
-  // RSS 1.0のように数値文字参照(&#x...;)で書かれた日本語を復元する
+  // Decode numeric character references (&#x...;), which RSS 1.0 feeds use for non-ASCII text
   htmlEntities: true,
 });
 
@@ -25,7 +25,7 @@ function asArray<T>(value: T | T[] | undefined | null): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
-/** テキストノードは文字列か {#text: ...} のどちらかで来る */
+/** A text node arrives either as a string or as {#text: ...} */
 function text(value: unknown): string {
   if (value === undefined || value === null) return '';
   if (typeof value === 'string') return value.trim();
@@ -49,10 +49,17 @@ function atomLink(link: unknown): string {
   return typeof alternate === 'string' ? alternate : (alternate['@_href'] ?? '');
 }
 
+/** Title of the feed itself (channel/feed title), used as the publisher name when none is configured */
+export function parseFeedTitle(xml: string): string {
+  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) return '';
+  const doc = parser.parse(xml) as Record<string, any>;
+  return text(doc.rss?.channel?.title) || text(doc['rdf:RDF']?.channel?.title) || text(doc.feed?.title);
+}
+
 export function parseFeed(xml: string): FeedEntry[] {
-  // RSS/AtomにDTDは不要。独自エンティティの展開(Billion Laughs攻撃など)の余地をなくすため、DTD付きは受け付けない。
+  // RSS/Atom never needs a DTD. Rejecting it rules out entity-expansion attacks such as Billion Laughs.
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) {
-    throw new Error('DTDを含むフィードは受け付けません');
+    throw new Error('Feeds with a DTD are not accepted');
   }
   const doc = parser.parse(xml) as Record<string, any>;
 
@@ -67,7 +74,7 @@ export function parseFeed(xml: string): FeedEntry[] {
     }));
   }
 
-  // RSS 1.0 (RDF) — はてブ
+  // RSS 1.0 (RDF), used by Hatena Bookmark
   if (doc['rdf:RDF']) {
     return asArray(doc['rdf:RDF'].item).map((item: any) => {
       const count = Number.parseInt(text(item['hatena:bookmarkcount']), 10);
@@ -94,5 +101,5 @@ export function parseFeed(xml: string): FeedEntry[] {
     }));
   }
 
-  throw new Error('未対応のフィード形式です');
+  throw new Error('Unsupported feed format');
 }

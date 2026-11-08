@@ -1,19 +1,19 @@
-/** 各情報源から取ってきた1件。正規化前の生データに近い形。 */
+/** One item as fetched from a source, before normalization */
 export interface RawItem {
   source: SourceId;
   title: string;
   url: string;
-  /** プラットフォーム上の議論ページ(HNのコメント欄など)。リンク先と別の場合のみ。 */
+  /** The platform's own discussion page (e.g. HN comments), when it differs from the article URL */
   discussionUrl?: string;
-  /** 人気指標の生の値(points, ブクマ数, いいね数など)。公式情報はnull。 */
+  /** Raw popularity value (points, bookmarks, likes...). null for official sources. */
   score: number | null;
-  /** 人気指標の単位(表示用) */
+  /** Unit of the popularity value, for display */
   scoreLabel?: string;
   tags: string[];
   publishedAt: string | null;
-  /** 公式枠のときの発信元名(Node.js, microsoft/playwright など) */
+  /** Publisher name for official items (Node.js, microsoft/playwright, ...) */
   publisher?: string;
-  /** GitHubリリースのとき、パッチリリースかどうか */
+  /** For GitHub releases: what kind of version bump it is */
   releaseKind?: 'major' | 'minor' | 'patch' | 'other';
 }
 
@@ -29,20 +29,8 @@ export type SourceId =
   | 'official'
   | 'github_release';
 
-export const SOURCE_LABELS: Record<SourceId, string> = {
-  hackernews: 'HN',
-  hatena: 'はてブ',
-  zenn: 'Zenn',
-  qiita: 'Qiita',
-  devto: 'dev.to',
-  lobsters: 'Lobsters',
-  huggingface: 'HF Papers',
-  github_new_repos: 'GitHub',
-  official: '公式',
-  github_release: 'Release',
-};
 
-/** 同じURLの記事を1枚にまとめたもの */
+/** Items sharing a URL, merged into one card */
 export interface Story {
   key: string;
   url: string;
@@ -51,21 +39,21 @@ export interface Story {
   lang: 'ja' | 'en' | 'zh';
   tags: string[];
   publishedAt: string | null;
-  /** プラットフォームごとの出現(バッジ表示用) */
+  /** Where the story appeared (shown as badges) */
   appearances: Appearance[];
-  /** 人気度 0〜1(各プラットフォーム内パーセンタイルの最大 + 複数出現ボーナス) */
+  /** Popularity 0-1 (highest per-platform percentile plus a cross-posting bonus) */
   pop: number;
-  /** 関心度 0〜1(当たったトピックの重みの最大) */
+  /** Interest 0-1 (highest weight among matched topics) */
   interest: number;
-  /** 当たったトピック名 */
+  /** Names of matched topics */
   topics: string[];
-  /** 当たったキーワード(ミュート候補の提示用) */
+  /** Matched keywords (offered as mute suggestions) */
   matchedKeywords: string[];
   publisher?: string;
   releaseKind?: RawItem['releaseKind'];
-  /** 公式枠で同じ発信元の他の新着をまとめたときの件数(「ほかN件」) */
+  /** In the official section: how many newer items from the same publisher were folded in ("+N more") */
   groupedCount?: number;
-  /** 前日以前に表示済みだが、さらに伸びたので再表示している */
+  /** Shown on an earlier day, back because it kept climbing */
   resurfaced?: boolean;
 }
 
@@ -81,11 +69,9 @@ export type SectionId = 'official' | 'forYou' | 'trending' | 'discover' | 'repos
 
 export interface Section {
   id: SectionId;
-  title: string;
-  description: string;
   /**
-   * 表示する件数。stories はミュート用の予備を含めてこれより多いことがあり、
-   * ブラウザがミュートを除いたうえで先頭から limit 件を表示する。
+   * How many stories to show. `stories` may hold more (spares for mutes);
+   * the browser drops muted ones and shows the first `limit`.
    */
   limit: number;
   stories: Story[];
@@ -94,28 +80,27 @@ export interface Section {
 export interface Feed {
   generatedAt: string;
   date: string;
+  /** UI language */
+  language: 'en' | 'ja';
+  title: string;
+  /** How many days back the official section looks (shown in its description) */
+  officialDays: number;
   sections: Section[];
   errors: { source: string; message: string }[];
 }
 
 export interface InterestConfig {
   topics: Record<string, { weight: number; keywords: string[] }>;
-  mute: { keywords: string[]; domains: string[] };
 }
 
 export interface LayoutConfig {
   official_days: number;
   for_you: number;
-  for_you_min_japanese: number;
+  /** Minimum number of stories in the page's language in "For you" */
+  for_you_min_local: number;
   trending: number;
   discover: number;
   repos: number;
   max_source_ratio: number;
 }
 
-export interface SourcesConfig {
-  platforms: Record<string, { enabled: boolean }>;
-  official_feeds: { name: string; url: string }[];
-  github_releases: string[];
-  layout: LayoutConfig;
-}

@@ -1,6 +1,6 @@
 /**
- * dist/ を手元で確認するための静的サーバー。このPCからだけ開ける(127.0.0.1)。
- * 本番は GitHub Pages が配信するので、このファイルは確認用。
+ * A static server for checking dist/ locally. Listens on 127.0.0.1 only.
+ * In production GitHub Pages serves the files; this is just for previewing.
  */
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -22,7 +22,7 @@ const server = createServer(async (req, res) => {
   const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
   const file = path.join(DIST_DIR, pathname.endsWith('/') ? `${pathname}index.html` : pathname);
   const type = CONTENT_TYPES[path.extname(file)];
-  // dist/ の外や、想定外の種類のファイルは返さない
+  // Never serve anything outside dist/ or of an unexpected type
   if (!file.startsWith(DIST_DIR + path.sep) || !type || req.method !== 'GET') {
     res.writeHead(404).end('Not found');
     return;
@@ -36,5 +36,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`http://localhost:${PORT}/ で確認できます`);
+  console.log(`Preview: http://localhost:${PORT}/`);
 });

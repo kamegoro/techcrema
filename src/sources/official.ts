@@ -1,10 +1,13 @@
-/** 公式情報(人気指標なし): 公式ブログのRSS/AtomとGitHubリリース */
+/** Official sources (no popularity signal): blog RSS/Atom feeds and GitHub releases */
 import { fetchJson, fetchText, githubHeaders } from '../http.ts';
-import { parseFeed } from '../feed-parser.ts';
+import { parseFeed, parseFeedTitle } from '../feed-parser.ts';
+import { domainOf } from '../normalize.ts';
 import type { RawItem } from '../types.ts';
 
-export async function fetchOfficialFeed(name: string, url: string): Promise<RawItem[]> {
+/** name is optional; without it the feed's own title (or the host name) is used */
+export async function fetchOfficialFeed(name: string | undefined, url: string): Promise<RawItem[]> {
   const xml = await fetchText(url);
+  const publisher = name || parseFeedTitle(xml).slice(0, 40) || domainOf(url);
   return parseFeed(xml).map((e) => ({
     source: 'official',
     title: e.title,
@@ -12,7 +15,7 @@ export async function fetchOfficialFeed(name: string, url: string): Promise<RawI
     score: null,
     tags: e.categories,
     publishedAt: e.publishedAt,
-    publisher: name,
+    publisher,
   }));
 }
 
@@ -25,7 +28,7 @@ interface GithubRelease {
   prerelease: boolean;
 }
 
-/** v1.2.3 / 1.2.3 / nvim-0.11.0 などからリリースの種類を判定する */
+/** Classifies a release from tags like v1.2.3, 1.2.3 or nvim-0.11.0 */
 export function classifyRelease(tag: string): RawItem['releaseKind'] {
   const m = tag.match(/(\d+)\.(\d+)(?:\.(\d+))?/);
   if (!m) return 'other';
@@ -42,7 +45,7 @@ export async function fetchGithubReleases(repo: string): Promise<RawItem[]> {
     githubHeaders(),
   );
   return releases
-    // "nightly" や "stable" のような動くタグは、バージョン付きのリリースと重複するので除く
+    // Skip moving tags such as "nightly" or "stable"; they duplicate the versioned releases
     .filter((r) => !r.draft && !r.prerelease && /\d/.test(r.tag_name))
     .map((r) => ({
       source: 'github_release',

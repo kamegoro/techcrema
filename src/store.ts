@@ -1,20 +1,18 @@
-/** data/ 以下の読み書き。すべてJSONファイル(GitHub Actions ではキャッシュに保存して次回に引き継ぐ)。 */
+/** Reading and writing data/. Plain JSON files; on GitHub Actions the directory is carried over in the cache. */
 import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parse as parseYaml } from 'yaml';
 import type { SeenEntry } from './rank.ts';
-import type { Feed, InterestConfig, SourcesConfig } from './types.ts';
+import type { Feed } from './types.ts';
 
 export const ROOT = path.resolve(import.meta.dirname, '..');
 export const DATA_DIR = process.env.TECH_CATCHUP_DATA_DIR ?? path.join(ROOT, 'data');
-const CONFIG_DIR = path.join(ROOT, 'config');
 
 const FEED_FILE = 'feed.json';
 const SEEN_FILE = 'seen.json';
 const SCORES_DIR = 'scores';
-/** 人気度のパーセンタイルを計算する期間 */
+/** How many days of scores the popularity percentile is computed over */
 export const SCORE_WINDOW_DAYS = 14;
-/** seen.json に残す期間 */
+/** How long entries stay in seen.json */
 const SEEN_RETENTION_DAYS = 30;
 
 async function readJson<T>(file: string, fallback: T): Promise<T> {
@@ -26,7 +24,7 @@ async function readJson<T>(file: string, fallback: T): Promise<T> {
   }
 }
 
-/** 書きかけのファイルを読まれないよう、一時ファイルに書いてから置き換える */
+/** Writes to a temporary file and renames it, so readers never see a half-written file */
 async function writeJson(file: string, data: unknown): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
@@ -34,19 +32,7 @@ async function writeJson(file: string, data: unknown): Promise<void> {
   await rename(tmp, file);
 }
 
-export async function loadInterests(): Promise<InterestConfig> {
-  const raw = parseYaml(await readFile(path.join(CONFIG_DIR, 'interests.yaml'), 'utf8')) as Partial<InterestConfig>;
-  return {
-    topics: raw.topics ?? {},
-    mute: { keywords: raw.mute?.keywords ?? [], domains: raw.mute?.domains ?? [] },
-  };
-}
-
-export async function loadSources(): Promise<SourcesConfig> {
-  return parseYaml(await readFile(path.join(CONFIG_DIR, 'sources.yaml'), 'utf8')) as SourcesConfig;
-}
-
-// --- フィード ---
+// --- Feed ---
 export function loadFeed(): Promise<Feed | null> {
   return readJson<Feed | null>(path.join(DATA_DIR, FEED_FILE), null);
 }
@@ -55,10 +41,10 @@ export function saveFeed(feed: Feed): Promise<void> {
   return writeJson(path.join(DATA_DIR, FEED_FILE), feed);
 }
 
-// --- 人気度の履歴(パーセンタイル計算用) ---
+// --- Score history (for percentiles) ---
 export type ScoreSnapshot = Record<string, number[]>;
 
-/** 直近 SCORE_WINDOW_DAYS 日分のスコアをソースごとにまとめて返す(今日の分は含めない) */
+/** Scores from the last SCORE_WINDOW_DAYS days, grouped by source (today excluded) */
 export async function loadScoreWindow(today: string): Promise<ScoreSnapshot> {
   const dir = path.join(DATA_DIR, SCORES_DIR);
   let files: string[] = [];
@@ -85,12 +71,12 @@ export async function loadScoreWindow(today: string): Promise<ScoreSnapshot> {
   return merged;
 }
 
-/** 今日のスコアを保存する。1日に何度collectしても、その日の最新の値で上書きする。 */
+/** Saves today's scores. Running collect again the same day overwrites them with the latest values. */
 export function saveScoreSnapshot(today: string, snapshot: ScoreSnapshot): Promise<void> {
   return writeJson(path.join(DATA_DIR, SCORES_DIR, `${today}.json`), snapshot);
 }
 
-// --- 表示済み記事 ---
+// --- Stories already shown ---
 export async function loadSeen(today: string): Promise<Record<string, SeenEntry>> {
   const seen = await readJson<Record<string, SeenEntry>>(path.join(DATA_DIR, SEEN_FILE), {});
   const cutoff = shiftDate(today, -SEEN_RETENTION_DAYS);
@@ -101,8 +87,8 @@ export function saveSeen(seen: Record<string, SeenEntry>): Promise<void> {
   return writeJson(path.join(DATA_DIR, SEEN_FILE), seen);
 }
 
-// --- 日付 ---
-/** ローカルタイムゾーンでの 'YYYY-MM-DD' */
+// --- Dates ---
+/** 'YYYY-MM-DD' in the process time zone (set from the `timezone` option) */
 export function localDate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');

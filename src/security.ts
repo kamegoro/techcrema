@@ -1,6 +1,6 @@
-/** 外部から来た値の検証 */
+/** Validation for values that come from outside */
 
-/** http(s) 以外のURL(javascript: や data: など)を弾く */
+/** Rejects anything that isn't an http(s) URL (javascript:, data:, ...) */
 export function isHttpUrl(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   try {

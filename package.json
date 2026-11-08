@@ -2,7 +2,7 @@
   "name": "tech-catchup",
   "version": "0.2.0",
   "private": true,
-  "description": "各プラットフォームで人気、かつ自分の関心に合う技術記事を毎日1ページにまとめる個人用リーダー",
+  "description": "Your own daily tech front page: popular stories from Hacker News, Lobsters, dev.to and more, filtered to your interests, published to GitHub Pages by a GitHub Action",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -14,7 +14,8 @@
     "preview": "node src/preview.ts",
     "test": "node --test 'test/**/*.test.ts'",
     "typecheck": "tsc",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "demo": "node scripts/demo.mjs"
   },
   "dependencies": {
     "fast-xml-parser": "^5.12.0",
@@ -22,6 +23,19 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "playwright-core": "^1.65.0",
     "typescript": "^7.0.2"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kamegoro/tech-catchup.git"
+  },
+  "keywords": [
+    "github-action",
+    "github-pages",
+    "hacker-news",
+    "news-aggregator",
+    "rss"
+  ]
 }

@@ -15,8 +15,8 @@ const TRACKING_PARAMS = new Set([
 ]);
 
 /**
- * 同じ記事を同じキーにするためのURL正規化。
- * 例: "https://www.Example.com/post/?utm_source=hn#top" → "example.com/post"
+ * Normalizes a URL so the same article gets the same key everywhere.
+ * e.g. "https://www.Example.com/post/?utm_source=hn#top" → "example.com/post"
  */
 export function normalizeUrl(input: string): string {
   let url: URL;
@@ -34,7 +34,7 @@ export function normalizeUrl(input: string): string {
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   const path = url.pathname.replace(/\/+$/, '');
   const query = params.length ? `?${new URLSearchParams(params).toString()}` : '';
-  // パスは大文字小文字を区別するサイトがあるので小文字化しない
+  // Paths stay as they are: some sites treat them case-sensitively
   return `${host}${path}${query}`;
 }
 
@@ -47,23 +47,23 @@ export function domainOf(input: string): string {
 }
 
 /**
- * ひらがな・カタカナがあれば日本語、漢字だけなら中国語、それ以外は英語とみなす。
- * (漢字だけだと日本語と中国語を区別できないため、かなの有無で判定する)
+ * Kana means Japanese, CJK ideographs without kana mean Chinese, anything else is treated as English.
+ * (Ideographs alone can't tell Japanese from Chinese, so kana decides.)
  */
 export function detectLang(title: string): Story['lang'] {
-  if (/[぀-ヿ]/.test(title)) return 'ja';
-  if (/[㐀-鿿]/.test(title)) return 'zh';
+  if (/[\u3040-\u30ff]/.test(title)) return 'ja';
+  if (/[\u3400-\u9fff]/.test(title)) return 'zh';
   return 'en';
 }
 
 /**
- * 同じURLの記事を1つのStoryにまとめる。
- * percentiles は「RawItem → そのプラットフォーム内パーセンタイル」の対応(公式はnull)。
+ * Merges items with the same URL into one Story.
+ * percentileOf maps an item to its percentile within its platform (null for official sources).
  */
 export function mergeIntoStories(items: RawItem[], percentileOf: (item: RawItem) => number | null): Story[] {
   const byKey = new Map<string, Story>();
   for (const item of items) {
-    // 外部APIの値は型を信用しない。文字列でないもの・http(s)でないURLは捨てる
+    // Don't trust types from outside APIs: drop non-string titles and non-http(s) URLs
     if (typeof item.title !== 'string' || !item.title.trim() || !isHttpUrl(item.url)) continue;
     item.tags = Array.isArray(item.tags) ? item.tags.filter((t): t is string => typeof t === 'string') : [];
     if (typeof item.score !== 'number' || !Number.isFinite(item.score)) item.score = null;
@@ -96,7 +96,7 @@ export function mergeIntoStories(items: RawItem[], percentileOf: (item: RawItem)
       });
       continue;
     }
-    // 同じプラットフォームに重複して載っている場合は、スコアの高いほうを残す
+    // Listed twice on the same platform: keep the higher score
     const sameSource = existing.appearances.findIndex((a) => a.source === item.source);
     if (sameSource >= 0) {
       const prev = existing.appearances[sameSource]!;

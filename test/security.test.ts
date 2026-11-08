@@ -7,7 +7,7 @@ import { isHttpUrl } from '../src/security.ts';
 import type { RawItem } from '../src/types.ts';
 
 describe('isHttpUrl', () => {
-  it('http(s) 以外のスキームを弾く', () => {
+  it('rejects schemes other than http(s)', () => {
     assert.equal(isHttpUrl('https://example.com'), true);
     assert.equal(isHttpUrl('javascript:alert(1)'), false);
     assert.equal(isHttpUrl('data:text/html,x'), false);
@@ -15,19 +15,19 @@ describe('isHttpUrl', () => {
   });
 });
 
-describe('外部データの防御', () => {
-  it('DTDを含むフィード(エンティティ展開攻撃)は拒否する', () => {
+describe('defending against outside data', () => {
+  it('rejects feeds with a DTD (entity expansion attacks)', () => {
     const xml = `<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol">]><rss><channel><item><title>&lol;</title></item></channel></rss>`;
     assert.throws(() => parseFeed(xml), /DTD/);
   });
 
-  it('上限を超えるレスポンスは途中で打ち切る', async () => {
+  it('stops reading responses over the size limit', async () => {
     const big = new Response('x'.repeat(100));
-    await assert.rejects(() => readLimited(big, 10), /大きすぎ/);
+    await assert.rejects(() => readLimited(big, 10), /too large/);
     assert.equal(await readLimited(new Response('ok'), 10), 'ok');
   });
 
-  it('javascript: のURLや文字列でないタイトルは記事にしない', () => {
+  it('ignores javascript: URLs and non-string titles', () => {
     const base: RawItem = { source: 'hackernews', title: 'ok', url: 'https://example.com/a', score: 1, tags: [], publishedAt: null };
     const stories = mergeIntoStories(
       [

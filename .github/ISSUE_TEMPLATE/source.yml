@@ -1,0 +1,34 @@
+name: Source request
+description: Suggest a site to collect stories from
+labels:
+  - source
+body:
+  - type: input
+    id: site
+    attributes:
+      label: Site
+      placeholder: https://example.com
+    validations:
+      required: true
+
+  - type: input
+    id: endpoint
+    attributes:
+      label: API, JSON endpoint or RSS feed
+      description: We only use official or public machine-readable endpoints, never HTML scraping.
+    validations:
+      required: true
+
+  - type: input
+    id: signal
+    attributes:
+      label: Popularity signal
+      placeholder: e.g. points, likes, stars
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Who reads it?
+      description: Language and audience help us decide whether it belongs in a default preset.

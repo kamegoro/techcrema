@@ -3,3 +3,5 @@ data/*
 !data/.gitkeep
 .DS_Store
 dist/
+playwright-report/
+test-results/

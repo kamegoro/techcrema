@@ -18,7 +18,8 @@ npm install
 ### Everyday commands
 
 ```sh
-npm run check     # type check (tsc) + tests (node --test) — what CI runs
+npm run check     # type check (tsc) + unit tests (node --test)
+npm run e2e       # browser tests (Playwright: iPhone/WebKit, Android/Chromium, desktop)
 npm run collect   # fetch real data using ./tech-catchup.yml
 npm run build     # assemble dist/
 npm run preview   # serve dist/ at http://localhost:8787
@@ -32,6 +33,18 @@ TECH_CATCHUP_DATA_DIR=/tmp/tc-data npm run build && npm run preview
 ```
 
 Please don't run `collect` in a tight loop: every run makes real requests to every source.
+
+### Browser tests
+
+`e2e/` runs the real page in WebKit and Chromium at phone and desktop sizes. Each test serves its own small `feed.json` (see `e2e/fixtures.ts`), so the tests never touch the network. Install the browsers once:
+
+```sh
+npx playwright install chromium webkit
+```
+
+Specs are split by purpose: `display.spec.ts` (what is shown), `interactions.spec.ts` (mute, read later, theme…) and `safety.spec.ts` (hostile feed content, corrupted storage). Name tests after what a reader sees or does, not after selectors.
+
+A weekly [smoke test](.github/workflows/smoke.yml) runs the action itself against the live sources, so a changed API fails loudly.
 
 ### Regenerating the demo GIF and screenshots
 
@@ -55,6 +68,7 @@ src/build.ts          web/ + feed.json → static site
 web/                  The page: vanilla JS, no framework, no build
 web/i18n.js           UI strings for every language
 test/                 node:test unit tests
+e2e/                  Playwright browser tests
 ```
 
 ## Adding a source
@@ -66,18 +80,18 @@ A source must have a **popularity signal** (points, likes, stars…) and an **of
 3. If it should be on by default for a language, add it to that preset in `PRESETS`.
 4. If the host asks for a crawl delay (check its `robots.txt`), add it to `HOST_INTERVAL_MS` in `src/http.ts`.
 5. Add a badge label in `SOURCE_LABELS` in `web/app.js` and a color in `web/style.css` (`.badge[data-source='…']`).
-6. Add a parsing test with a small fixture in `test/sources.test.ts`, and a row to the Sources table in the README.
+6. Add a parsing test with a small fixture in `test/sources.test.ts`, and a row to the Sources table in [docs/configuration.md](docs/configuration.md#sources).
 
 ## Adding a UI language
 
 1. Copy the `en` block in `web/i18n.js` and translate every key.
 2. Add the code to `LANGUAGES` and a preset to `PRESETS` in `src/config.ts`, including the sources that make sense for that audience.
-3. Add the language to the README's `language` input.
+3. Add the language to the `language` row in [docs/configuration.md](docs/configuration.md).
 
 ## Pull requests
 
 - Open an issue first for anything bigger than a small fix, so we can agree on the approach.
-- Add or update tests with your change. Run `npm run check` before pushing.
+- Add or update tests with your change. Run `npm run check` and `npm run e2e` before pushing.
 - Write commit messages, code comments and docs in English.
 - Keep runtime dependencies to a minimum; the project currently has two.
 - If you change what the page looks like, include a screenshot in the PR (phone width and dark mode, please).

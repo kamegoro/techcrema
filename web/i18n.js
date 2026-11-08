@@ -1,5 +1,4 @@
-// UI strings. The language comes from feed.json (set by the `language` option).
-// Until the feed arrives, the last language seen on this device (or the browser's) is used.
+// UI strings. The language comes from the `language` option (written into the page and feed.json).
 
 const MESSAGES = {
   en: {
@@ -146,14 +145,13 @@ const MESSAGES = {
   },
 };
 
-const LANG_KEY = 'tc-lang';
+// The build writes the feed's language into <html lang>, so the first paint is already right.
+// When opening web/ without a build, fall back to the browser's language.
 let lang = initialLanguage();
 
 function initialLanguage() {
-  try {
-    const saved = localStorage.getItem(LANG_KEY);
-    if (saved && saved in MESSAGES) return saved;
-  } catch {}
+  const fromPage = document.documentElement.lang;
+  if (fromPage && fromPage in MESSAGES) return fromPage;
   return navigator.language?.toLowerCase().startsWith('ja') ? 'ja' : 'en';
 }
 
@@ -165,9 +163,6 @@ export function getLanguage() {
 export function setLanguage(next) {
   if (!(next in MESSAGES) || next === lang) return false;
   lang = next;
-  try {
-    localStorage.setItem(LANG_KEY, next);
-  } catch {}
   return true;
 }
 

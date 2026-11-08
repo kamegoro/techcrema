@@ -1,0 +1,7 @@
+# Used by .github/workflows/smoke.yml: every source type, one official feed and one release.
+topics:
+  ai: [llm, ai, agent, agents]
+  web: [javascript, typescript, react, css]
+official:
+  - https://blog.rust-lang.org/feed.xml
+  - nodejs/node

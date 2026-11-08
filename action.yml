@@ -34,9 +34,13 @@ inputs:
     description: 'Path to a YAML file with the same settings. Inputs override it. Default: tech-catchup.yml if it exists.'
     required: false
   deploy:
-    description: 'Deploy to GitHub Pages. Set to false to only build (the site is uploaded as an artifact either way).'
+    description: 'Deploy to GitHub Pages. Set to false to only collect and build, e.g. to try out settings.'
     required: false
     default: 'true'
+  cache-key:
+    description: 'Name of the Actions cache that keeps score history between runs. Use a different one per page if one repository builds several.'
+    required: false
+    default: tech-catchup-data
   qiita-token:
     description: 'Optional Qiita access token for a higher rate limit'
     required: false
@@ -66,8 +70,8 @@ runs:
     - uses: actions/cache/restore@v6
       with:
         path: ${{ runner.temp }}/tech-catchup-data
-        key: tech-catchup-data-${{ github.run_id }}
-        restore-keys: tech-catchup-data-
+        key: ${{ inputs.cache-key }}-${{ github.run_id }}
+        restore-keys: ${{ inputs.cache-key }}-
 
     - name: Collect
       shell: bash
@@ -90,7 +94,7 @@ runs:
     - uses: actions/cache/save@v6
       with:
         path: ${{ runner.temp }}/tech-catchup-data
-        key: tech-catchup-data-${{ github.run_id }}-${{ github.run_attempt }}
+        key: ${{ inputs.cache-key }}-${{ github.run_id }}-${{ github.run_attempt }}
 
     - name: Build
       shell: bash
@@ -100,6 +104,7 @@ runs:
       run: node "$GITHUB_ACTION_PATH/src/build.ts"
 
     - uses: actions/upload-pages-artifact@v5
+      if: inputs.deploy == 'true'
       with:
         path: ${{ runner.temp }}/tech-catchup-site
 

@@ -2,6 +2,7 @@
  * The pipeline: fetch → merge by URL → popularity & interest → sections → feed.json
  * Run with `npm run collect`; the GitHub Action runs it on a schedule.
  */
+import { appendFile } from 'node:fs/promises';
 import { loadConfig, type Config, type PlatformId } from './config.ts';
 import { mergeIntoStories } from './normalize.ts';
 import { buildSections, isMuted, percentile, popularity, scoreInterest } from './rank.ts';
@@ -55,7 +56,12 @@ function buildJobs(config: Config, now: Date): Job[] {
   ];
 }
 
-export async function collect(config: Config, log: (msg: string) => void = () => undefined): Promise<Feed> {
+export async function collect(
+  config: Config,
+  log: (msg: string) => void = () => undefined,
+  /** Filled with the number of items each source returned */
+  counts: Record<string, number> = {},
+): Promise<Feed> {
   const now = new Date();
   const today = localDate(now);
   const [seen, history] = await Promise.all([loadSeen(today), loadScoreWindow(today)]);
@@ -66,6 +72,7 @@ export async function collect(config: Config, log: (msg: string) => void = () =>
     buildJobs(config, now).map(async (job) => {
       try {
         const items = await job.run();
+        counts[job.label] = items.length;
         log(`  ✓ ${job.label}: ${items.length}`);
         return items;
       } catch (err) {
@@ -130,15 +137,50 @@ export async function collect(config: Config, log: (msg: string) => void = () =>
   return feed;
 }
 
+/** Markdown for the Actions run page: what was fetched, what each section got, which topics matched */
+export function summarize(config: Config, feed: Feed, counts: Record<string, number>): string {
+  const visible = feed.sections.map((s) => ({ ...s, stories: s.stories.slice(0, s.limit) }));
+  const topicHits = new Map<string, number>(Object.keys(config.topics).map((t) => [t, 0]));
+  for (const s of visible.flatMap((sec) => sec.stories)) {
+    for (const t of s.topics) if (topicHits.has(t)) topicHits.set(t, topicHits.get(t)! + 1);
+  }
+  const lines = [
+    `## ☕ Tech Catchup — ${feed.date}`,
+    '',
+    `Language \`${config.language}\`, time zone \`${config.timezone}\``,
+    '',
+    '| Section | Shown | Spare |',
+    '|---|---:|---:|',
+    ...feed.sections.map((s) => `| ${s.id} | ${Math.min(s.limit, s.stories.length)} | ${Math.max(0, s.stories.length - s.limit)} |`),
+    '',
+    '| Source | Items |',
+    '|---|---:|',
+    ...Object.entries(counts).map(([label, n]) => `| ${label} | ${n} |`),
+    ...feed.errors.map((e) => `| ❌ ${e.source} | ${e.message.replace(/\|/g, '\\|')} |`),
+  ];
+  if (topicHits.size > 0) {
+    lines.push('', '| Topic | Stories on today\'s page |', '|---|---:|', ...[...topicHits].map(([t, n]) => `| ${t} | ${n} |`));
+    const unused = [...topicHits].filter(([, n]) => n === 0).map(([t]) => t);
+    if (unused.length) lines.push('', `> Topics with no stories today: ${unused.join(', ')}. That is normal on quiet days; if it keeps happening, try broader keywords.`);
+  } else {
+    lines.push('', '> No `topics` configured, so "For you" is empty. Add a few to personalize the page.');
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 if (import.meta.main) {
   const config = await loadConfig();
   // "Today" follows the configured time zone, not the machine's
   process.env.TZ = config.timezone;
   const topics = Object.keys(config.topics);
   console.log(`Collecting (${config.language}, ${config.timezone}; topics: ${topics.join(', ') || 'none'})…`);
-  const feed = await collect(config, (m) => console.log(m));
+  const counts: Record<string, number> = {};
+  const feed = await collect(config, (m) => console.log(m), counts);
+  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, summarize(config, feed, counts));
   console.log(`\n${feed.date}: wrote ${DATA_DIR}/feed.json`);
   for (const s of feed.sections) console.log(`  ${s.id}: ${Math.min(s.limit, s.stories.length)} (+${Math.max(0, s.stories.length - s.limit)} spare)`);
   if (feed.errors.length) console.log(`  failed: ${feed.errors.map((e) => e.source).join(', ')}`);
   if (topics.length === 0) console.log('\nTip: add `topics` to get a personalized "For you" section.');
+  // Used by the scheduled smoke test: fail loudly when a source breaks (an API change, for example)
+  if (process.env.TECH_CATCHUP_STRICT === '1' && feed.errors.length > 0) process.exit(1);
 }

@@ -1,0 +1,32 @@
+# Runs the action end to end against the real sources once a week,
+# so a changed API or feed format shows up as a failed run instead of a quietly empty page.
+name: Smoke test
+
+on:
+  schedule:
+    - cron: '0 3 * * 1' # Mondays 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  action:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [en, ja]
+    env:
+      # Fail the run when any source fails
+      TECH_CATCHUP_STRICT: '1'
+    steps:
+      - uses: actions/checkout@main
+        with:
+          persist-credentials: false
+      - uses: ./
+        with:
+          config: examples/smoke.yml
+          language: ${{ matrix.language }}
+          deploy: false
+          cache-key: smoke-${{ matrix.language }}

@@ -12,7 +12,6 @@
   --accent-soft: #e8ecff;
   --accent-text: #2a44d8;
   --on-accent: #ffffff;
-  --liked: #e5484d;
   --saved: #d97706;
   --focus: #3d5afe;
   --shadow: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
@@ -54,7 +53,6 @@
     --accent-soft: #232a4d;
     --accent-text: #aab5ff;
     --on-accent: #0e1014;
-    --liked: #ff6b70;
     --saved: #f5a524;
     --focus: #8c9bff;
     --shadow: none;
@@ -82,7 +80,6 @@
   --accent-soft: #232a4d;
   --accent-text: #aab5ff;
   --on-accent: #0e1014;
-  --liked: #ff6b70;
   --saved: #f5a524;
   --focus: #8c9bff;
   --shadow: none;
@@ -243,16 +240,11 @@ a {
   background: var(--surface-2);
   color: var(--text);
 }
-.icon-button:disabled {
-  cursor: progress;
-}
-
 .theme-icon {
   display: none;
 }
-#theme[data-mode="system"] .theme-icon-system,
-#theme[data-mode="light"] .theme-icon-light,
-#theme[data-mode="dark"] .theme-icon-dark {
+#theme[aria-pressed="false"] .theme-icon-light,
+#theme[aria-pressed="true"] .theme-icon-dark {
   display: block;
 }
 
@@ -579,10 +571,6 @@ a.badge:hover {
   width: 19px;
   height: 19px;
 }
-.action-like[aria-pressed="true"] {
-  color: var(--liked);
-}
-.action-like[aria-pressed="true"] svg,
 .action-later[aria-pressed="true"] svg {
   fill: currentColor;
 }
@@ -891,16 +879,8 @@ a.badge:hover {
 
 /* Motion only for people who haven't asked to reduce it */
 @media (prefers-reduced-motion: no-preference) {
-  .icon-button[aria-busy="true"] svg {
-    animation: spin 0.9s linear infinite;
-  }
   .skeleton {
     animation: shimmer 1.4s ease-in-out infinite;
-  }
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 @keyframes shimmer {

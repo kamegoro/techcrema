@@ -9,8 +9,7 @@ test.describe('Today page', () => {
       - banner:
         - heading "TechCrema" [level=1]
         - paragraph: Sun, November 8 · updated 08:00 AM
-        - button "Reload"
-        - 'button "Theme: System (tap to change)"'
+        - button "Dark mode" [pressed=false]
         - navigation "Views":
           - link "Today 8"
           - link "Later"
@@ -40,14 +39,12 @@ test.describe('Today page', () => {
     await expect(reader.story('Rust ownership explained')).toMatchAriaSnapshot(`
       - article "Rust ownership explained":
         - link "Discussion on HN (120 pt)"
-        - text: EN
         - heading "Rust ownership explained" [level=3]:
           - link "Rust ownership explained":
             - /url: https://alpha.dev/a
         - text: alpha.dev
         - time: 3 hr. ago
         - text: "#rust"
-        - button "Like"
         - button "Read later"
         - button "Mute"
     `);
@@ -62,8 +59,23 @@ test.describe('Today page', () => {
         - list:
           - listitem:
             - article "node v26.1.0":
-              - text: Release Minor +2 more EN
+              - text: Release Minor +2 more
     `);
+  });
+
+  test('a story in another language says which one', async ({ reader }) => {
+    const feed = makeFeed();
+    const withJapanese = {
+      ...feed,
+      sections: feed.sections.map((s) =>
+        s.id === 'discover'
+          ? { ...s, stories: s.stories.map((st) => ({ ...st, title: 'Rustの所有権', lang: 'ja' as const })) }
+          : s,
+      ),
+    };
+    await reader.open(withJapanese);
+    await expect(reader.story('Rustの所有権')).toContainText('JP');
+    await expect(reader.story('Rust ownership explained')).not.toContainText('EN');
   });
 
   test('the page title comes from the settings', async ({ reader, page }) => {
@@ -120,10 +132,4 @@ test.describe('Layout', () => {
       );
     });
   }
-
-  test('the page follows the system dark mode', async ({ reader, page }) => {
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await reader.open(makeFeed());
-    await expect(page.locator('body')).toHaveCSS('color-scheme', /dark/);
-  });
 });

@@ -15,19 +15,18 @@ const SOURCE_LABELS = {
 };
 const LANG_LABELS = { ja: 'JP', en: 'EN', zh: 'ZH' };
 const STATE_KEY = 'techcrema-state-v1';
-/** Keep at most this many read/liked keys (oldest dropped first) so localStorage doesn't fill up */
+/** Keep at most this many read marks (oldest dropped first) so localStorage doesn't fill up */
 const MAX_KEYS = 3000;
 const MAX_LATER = 300;
 
 const ICONS = {
-  like: '<path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/>',
   later: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
   mute: '<circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/>',
   comment: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
 };
 
-/** @type {{feed: any, state: {liked: string[], read: string[], later: any[], mute: {keywords: string[], domains: string[]}}, loading: boolean}} */
-const data = { feed: null, state: loadState(), loading: false };
+/** @type {{feed: any, state: {read: string[], later: any[], mute: {keywords: string[], domains: string[]}}}} */
+const data = { feed: null, state: loadState() };
 let loadError = null;
 
 const $ = (id) => document.getElementById(id);
@@ -74,7 +73,7 @@ function formatScore(n) {
 }
 
 function emptyUserState() {
-  return { liked: [], read: [], later: [], mute: { keywords: [], domains: [] } };
+  return { read: [], later: [], mute: { keywords: [], domains: [] } };
 }
 
 function strings(v) {
@@ -87,7 +86,6 @@ function loadState() {
     const raw = JSON.parse(localStorage.getItem(STATE_KEY) ?? 'null');
     if (!raw || typeof raw !== 'object') return emptyUserState();
     return {
-      liked: strings(raw.liked),
       read: strings(raw.read),
       later: Array.isArray(raw.later)
         ? raw.later.filter((x) => x && typeof x.key === 'string' && typeof x.title === 'string')
@@ -101,7 +99,6 @@ function loadState() {
 
 function saveState() {
   const s = data.state;
-  s.liked = s.liked.slice(-MAX_KEYS);
   s.read = s.read.slice(-MAX_KEYS);
   s.later = s.later.slice(0, MAX_LATER);
   try {
@@ -138,10 +135,7 @@ function visibleSections(feed) {
   }));
 }
 
-async function load({ manual = false } = {}) {
-  data.loading = true;
-  renderHeader();
-  const before = data.feed?.generatedAt;
+async function load() {
   try {
     const res = await fetch('./feed.json', { cache: 'no-cache' });
     if (!res.ok) throw new Error(res.status === 404 ? t('load.missing') : `HTTP ${res.status}`);
@@ -152,12 +146,9 @@ async function load({ manual = false } = {}) {
       document.title = data.feed.title;
       document.querySelector('.brand-title').textContent = data.feed.title;
     }
-    if (manual) toast(t(data.feed.generatedAt === before ? 'load.latest' : 'load.updated'));
   } catch (err) {
     loadError = err;
-    if (manual) toast(t('load.failed', { message: err.message }));
   }
-  data.loading = false;
   render();
 }
 
@@ -165,7 +156,6 @@ function act(action, story) {
   const key = story.key;
   const s = data.state;
   const toggle = (list, on) => (on ? [...list.filter((k) => k !== key), key] : list.filter((k) => k !== key));
-  if (action === 'like' || action === 'unlike') s.liked = toggle(s.liked, action === 'like');
   if (action === 'read') s.read = toggle(s.read, true);
   // Save the whole story so it is still there after the feed changes tomorrow
   if (action === 'later') s.later = [story, ...s.later.filter((x) => x.key !== key)];
@@ -215,38 +205,34 @@ function toast(text, action) {
   toastTimer = setTimeout(() => (el.hidden = true), action ? 6000 : 2800);
 }
 
-const THEME_ORDER = ['system', 'light', 'dark'];
-
-function currentTheme() {
+/** The saved choice, or null to follow the system */
+function savedTheme() {
   try {
-    const t = localStorage.getItem('theme');
-    return t === 'light' || t === 'dark' ? t : 'system';
+    const theme = localStorage.getItem('theme');
+    return theme === 'light' || theme === 'dark' ? theme : null;
   } catch {
-    return 'system';
+    return null;
   }
 }
 
-function applyTheme(mode) {
-  if (mode === 'system') delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = mode;
-  const btn = $('theme');
-  btn.dataset.mode = mode;
-  btn.setAttribute('aria-label', t('theme.label', { mode: t(`theme.${mode}`) }));
+const isDark = () =>
+  (savedTheme() ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark';
+
+function applyTheme() {
+  const dark = isDark();
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  $('theme').setAttribute('aria-pressed', String(dark));
   // Match the browser UI color (the address bar on phones)
-  const dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
     meta.setAttribute('content', dark ? '#0e1014' : '#f5f6f8');
   }
 }
 
-function cycleTheme() {
-  const next = THEME_ORDER[(THEME_ORDER.indexOf(currentTheme()) + 1) % THEME_ORDER.length];
+function toggleTheme() {
   try {
-    if (next === 'system') localStorage.removeItem('theme');
-    else localStorage.setItem('theme', next);
+    localStorage.setItem('theme', isDark() ? 'light' : 'dark');
   } catch {}
-  applyTheme(next);
-  toast(t('theme.toast', { mode: t(`theme.${next}`) }));
+  applyTheme();
 }
 
 function currentTab() {
@@ -255,15 +241,11 @@ function currentTab() {
 }
 
 function renderHeader() {
-  const { feed, loading } = data;
+  const { feed } = data;
   const meta = $('meta');
   if (feed) {
     meta.textContent = t('updated', { date: formatDate(feed.date), time: formatTime(feed.generatedAt) });
   } else meta.textContent = '';
-
-  const refreshBtn = $('refresh');
-  refreshBtn.disabled = loading;
-  refreshBtn.setAttribute('aria-busy', String(loading));
 
   const total = feed ? visibleSections(feed).reduce((n, s) => n + s.stories.length, 0) : 0;
   $('count-today').textContent = total ? String(total) : '';
@@ -331,7 +313,6 @@ function sourceBadge(a) {
 /** One story as an <article> named by its title. idPrefix keeps the heading ids unique on the page. */
 function card(story, idPrefix) {
   const s = data.state;
-  const liked = s.liked.includes(story.key);
   const later = s.later.some((x) => x.key === story.key);
   const read = s.read.includes(story.key);
   const href = safeUrl(story.url);
@@ -352,7 +333,10 @@ function card(story, idPrefix) {
       : null,
     story.groupedCount ? h('span', { class: 'badge' }, t('grouped', { n: story.groupedCount })) : null,
     story.resurfaced ? h('span', { class: 'badge badge-accent' }, t('resurfaced')) : null,
-    h('span', { class: 'badge badge-lang', title: t('language') }, LANG_LABELS[story.lang] ?? story.lang),
+    // Only worth pointing out when the story isn't in the page's language
+    story.lang === document.documentElement.lang
+      ? null
+      : h('span', { class: 'badge badge-lang', title: t('language') }, LANG_LABELS[story.lang] ?? story.lang),
   );
 
   const titleId = `${idPrefix}-title`;
@@ -387,18 +371,6 @@ function card(story, idPrefix) {
   const actions = h(
     'div',
     { class: 'card-actions' },
-    h(
-      'button',
-      {
-        class: 'action action-like',
-        type: 'button',
-        'aria-pressed': String(liked),
-        'aria-label': t(liked ? 'unlike' : 'like'),
-        title: t('like'),
-        onclick: () => act(liked ? 'unlike' : 'like', story),
-      },
-      icon('like'),
-    ),
     h(
       'button',
       {
@@ -624,10 +596,9 @@ function setupMuteSheet() {
 }
 
 translateDocument();
-applyTheme(currentTheme());
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(currentTheme()));
-$('theme').addEventListener('click', cycleTheme);
-$('refresh').addEventListener('click', () => load({ manual: true }));
+applyTheme();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+$('theme').addEventListener('click', toggleTheme);
 window.addEventListener('hashchange', () => {
   render();
   window.scrollTo(0, 0);

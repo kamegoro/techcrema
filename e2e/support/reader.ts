@@ -16,8 +16,6 @@ export class Reader {
     this.page = page;
   }
 
-  // --- Opening the page -----------------------------------------------------
-
   /** Opens the page with `feed` as today's feed.json (null: no feed has been generated yet) */
   async open(feed: Feed | null, tab: Tab = 'Today') {
     await step(`Open the ${tab} page`, async () => {
@@ -63,8 +61,6 @@ export class Reader {
       await expect(tabLink).toHaveAccessibleName(count === null ? tab : `${tab} ${count}`);
     });
   }
-
-  // --- Sections and stories -------------------------------------------------
 
   section(name: string) {
     return ui.region(this.page, name);
@@ -120,21 +116,6 @@ export class Reader {
     });
   }
 
-  // --- Like and Read later --------------------------------------------------
-
-  async like(title: string) {
-    await step(`Like "${title}"`, () => ui.button(this.story(title), 'Like').click());
-  }
-
-  async expectLiked(title: string, liked = true) {
-    await step(`"${title}" is ${liked ? '' : 'not '}liked`, async () => {
-      await expect(ui.button(this.story(title), liked ? 'Remove like' : 'Like')).toHaveAttribute(
-        'aria-pressed',
-        String(liked),
-      );
-    });
-  }
-
   async saveForLater(title: string) {
     await step(`Save "${title}" for later`, () => ui.button(this.story(title), 'Read later').click());
   }
@@ -150,8 +131,6 @@ export class Reader {
       await expect(ui.heading(this.page.getByRole('main'), /.*/, 3)).toHaveText(titles);
     });
   }
-
-  // --- Mute -------------------------------------------------------------------
 
   muteSheet() {
     return ui.dialog(this.page);
@@ -208,8 +187,6 @@ export class Reader {
     });
   }
 
-  // --- Messages, theme, reload ---------------------------------------------
-
   async expectMessage(text: string) {
     await step(`A message says "${text}"`, async () => {
       await expect(ui.status(this.page).filter({ hasText: text })).toBeVisible();
@@ -236,17 +213,14 @@ export class Reader {
     });
   }
 
-  async switchTheme() {
-    await step('Switch the theme', () => ui.button(this.page, /^Theme:/).click());
+  async toggleDarkMode() {
+    await step('Toggle dark mode', () => ui.button(this.page, 'Dark mode').click());
   }
 
-  async expectTheme(mode: 'System' | 'Light' | 'Dark') {
-    await step(`The theme is ${mode}`, async () => {
-      await expect(ui.button(this.page, /^Theme:/)).toHaveAccessibleName(`Theme: ${mode} (tap to change)`);
+  async expectDarkMode(on: boolean) {
+    await step(`Dark mode is ${on ? 'on' : 'off'}`, async () => {
+      await expect(ui.button(this.page, 'Dark mode')).toHaveAttribute('aria-pressed', String(on));
+      await expect(this.page.locator('body')).toHaveCSS('color-scheme', on ? 'dark' : 'light');
     });
-  }
-
-  async reloadFeed() {
-    await step('Reload the feed', () => ui.button(this.page, 'Reload').click());
   }
 }

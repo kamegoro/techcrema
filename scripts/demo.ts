@@ -107,9 +107,7 @@ await pause(1400);
 await page.getByRole('link', { name: /Today/ }).tap();
 await pause(500);
 // 5. Dark mode
-await page.getByRole('button', { name: /^Theme:/ }).tap();
-await pause(300);
-await page.getByRole('button', { name: /^Theme:/ }).tap();
+await page.getByRole('button', { name: 'Dark mode' }).tap();
 await pause(1800);
 
 await cdp.send('Page.stopScreencast');

@@ -15,7 +15,7 @@ The 14-day score history and the list of shown stories are kept in the Actions c
 ## Privacy & etiquette
 
 - **What gets published:** titles, links and popularity numbers. No article text is copied.
-- **What stays on your device:** likes, Read later and mutes live in your browser's `localStorage` and are never sent anywhere.
+- **What stays on your device:** Read later, read marks and mutes live in your browser's `localStorage` and are never sent anywhere.
 - **No tracking:** the page loads nothing from third parties, and a strict Content Security Policy blocks inline scripts and outside requests.
 - **Gentle fetching:** each run makes one pass over the sources. Requests to the same host go one at a time with a pause (5 seconds for Hatena, per its `robots.txt`). Every request carries a User-Agent naming your repository. Please keep the schedule to a couple of runs a day.
 - **Terms of service:** this is meant as a personal reading page. If you build a public service on top of it, check each source's terms first.

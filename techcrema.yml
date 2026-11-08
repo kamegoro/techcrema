@@ -1,9 +1,9 @@
-# Settings for the live demo at https://kamegoro.github.io/tech-catchup/
+# Settings for the live demo at https://kamegoro.github.io/techcrema/
 # Copy this file to your own repository as a starting point. Every key is optional;
 # action inputs with the same name override it. See docs/configuration.md.
 
 language: en
-title: Tech Catchup demo
+title: TechCrema demo
 
 # Ready-made interests: frontend, node, rust, go, python, ai, devops, security, neovim
 presets: [ai, frontend, rust, devops]

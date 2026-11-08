@@ -71,7 +71,7 @@ const MESSAGES = {
     'mute.undo': 'Undo',
     'mute.removed': 'Unmuted',
     'mute.help':
-      'Likes, Read later and mutes are saved in this browser only. To change your topics, edit the workflow or tech-catchup.yml in your repository.',
+      'Likes, Read later and mutes are saved in this browser only. To change your topics, edit the workflow or techcrema.yml in your repository.',
     'save.failed': 'Could not save in this browser (private browsing does not keep data)',
     'list.separator': ', ',
   },
@@ -145,7 +145,7 @@ const MESSAGES = {
     'mute.undo': '元に戻す',
     'mute.removed': 'ミュートを解除しました',
     'mute.help':
-      'いいね・あとで読む・ミュートは、このブラウザにだけ保存されます。関心のあるトピックは、リポジトリのワークフローか tech-catchup.yml で変更できます。',
+      'いいね・あとで読む・ミュートは、このブラウザにだけ保存されます。関心のあるトピックは、リポジトリのワークフローか techcrema.yml で変更できます。',
     'save.failed': 'このブラウザに保存できませんでした(プライベートモードでは保存されません)',
     'list.separator': '、',
   },

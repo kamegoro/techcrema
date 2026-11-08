@@ -13,12 +13,12 @@ A complete workflow with every common option is in [examples/workflow.yml](../ex
 | `official` | One per line: an RSS/Atom URL (optionally `Name https://…`), or `owner/repo` for GitHub releases | none |
 | `mute-keywords` | Comma-separated keywords to never show | none |
 | `mute-domains` | Comma-separated domains to never show (subdomains included) | none |
-| `title` | Page title | `Tech Catchup` |
+| `title` | Page title | `TechCrema` |
 | `timezone` | IANA time zone that decides when "today" starts | `UTC` (`Asia/Tokyo` for `ja`) |
-| `config` | Path to a YAML file with the same settings; inputs override it | `tech-catchup.yml` if present |
+| `config` | Path to a YAML file with the same settings; inputs override it | `techcrema.yml` if present |
 | `deploy` | `false` collects and builds without publishing — handy for trying settings (see the run summary) | `true` |
 | `qiita-token` | Optional Qiita token for a higher rate limit | none |
-| `cache-key` | Name of the Actions cache that keeps the score history; use a different one per page if one repository builds several | `tech-catchup-data` |
+| `cache-key` | Name of the Actions cache that keeps the score history; use a different one per page if one repository builds several | `techcrema-data` |
 
 ## Presets
 
@@ -61,13 +61,13 @@ topics: |
 
 ## Using a config file
 
-For longer setups, check out your repository and keep the settings in `tech-catchup.yml` ([example](../tech-catchup.yml)):
+For longer setups, check out your repository and keep the settings in `techcrema.yml` ([example](../techcrema.yml)):
 
 ```yaml
 steps:
   - uses: actions/checkout@v7
-  - id: catchup
-    uses: kamegoro/tech-catchup@v1 # reads ./tech-catchup.yml
+  - id: techcrema
+    uses: kamegoro/techcrema@v1 # reads ./techcrema.yml
 ```
 
 The file also accepts `layout`, which sets how many stories each section shows:

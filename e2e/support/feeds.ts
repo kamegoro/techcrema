@@ -43,7 +43,7 @@ export function makeFeed(over: Partial<Feed> = {}): Feed {
     generatedAt: hoursAgo(1),
     date: '2026-11-08',
     language: 'en',
-    title: 'Tech Catchup',
+    title: 'TechCrema',
     officialDays: 3,
     errors: [],
     sections: [

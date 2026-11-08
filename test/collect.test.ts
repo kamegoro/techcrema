@@ -41,7 +41,7 @@ let tmp: string;
 
 beforeEach(async () => {
   tmp = await mkdtemp(path.join(tmpdir(), 'tc-collect-'));
-  vi.stubEnv('TECH_CATCHUP_DATA_DIR', path.join(tmp, 'data'));
+  vi.stubEnv('TECHCREMA_DATA_DIR', path.join(tmp, 'data'));
   vi.stubEnv('TZ', 'UTC');
   vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
   vi.mocked(fetchHackerNews).mockResolvedValue([
@@ -91,7 +91,7 @@ describe('collect', () => {
     expect(byId.forYou).toEqual(['Rust 2.0 released']);
     expect(byId.official).toEqual(['Node.js 26.1']);
     expect(JSON.stringify(feed)).not.toContain('Something else');
-    expect(feed).toMatchObject({ date: TODAY, language: 'en', title: 'Tech Catchup', officialDays: 3 });
+    expect(feed).toMatchObject({ date: TODAY, language: 'en', title: 'TechCrema', officialDays: 3 });
     expect(await loadFeed()).toEqual(feed);
   });
 
@@ -113,7 +113,7 @@ describe('collect', () => {
 
 describe('runCollect', () => {
   const env = (over: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
-    TECH_CATCHUP_CONFIG: path.join(tmp, 'config.yml'),
+    TECHCREMA_CONFIG: path.join(tmp, 'config.yml'),
     ...over,
   });
 
@@ -138,10 +138,10 @@ describe('runCollect', () => {
   });
 
   it('fails in strict mode when a source failed, and passes when none did', async () => {
-    expect(await runCollect(env({ TECH_CATCHUP_STRICT: '1' }), vi.fn())).toBe(1);
+    expect(await runCollect(env({ TECHCREMA_STRICT: '1' }), vi.fn())).toBe(1);
     vi.mocked(fetchLobsters).mockResolvedValue([]);
     const log = vi.fn();
-    expect(await runCollect(env({ TECH_CATCHUP_STRICT: '1', TC_TOPICS: 'rust: [rust]' }), log)).toBe(0);
+    expect(await runCollect(env({ TECHCREMA_STRICT: '1', TC_TOPICS: 'rust: [rust]' }), log)).toBe(0);
     expect(log).not.toHaveBeenCalledWith(expect.stringContaining('failed:'));
   });
 });
@@ -152,7 +152,7 @@ describe('summarize', () => {
     generatedAt: '2026-11-08T00:00:00Z',
     date: '2026-11-08',
     language: 'en',
-    title: 'Tech Catchup',
+    title: 'TechCrema',
     officialDays: 3,
     sections: [{ id: 'forYou', limit: 1, stories: [story('a', ['rust']), story('b', ['go'])] }],
     errors: [{ source: 'lobsters', message: 'HTTP 503 | down' }],

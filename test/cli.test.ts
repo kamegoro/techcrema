@@ -36,8 +36,8 @@ describe('run', () => {
   });
 
   it('preview takes a directory, base path and port from flags or PORT', async () => {
-    await run(['preview', '--dir', 'web', '--base', '/tech-catchup/', '--port', '4173'], vi.fn(), {});
-    expect(startStaticServer).toHaveBeenLastCalledWith({ root: path.resolve('web'), base: '/tech-catchup/' }, 4173);
+    await run(['preview', '--dir', 'web', '--base', '/techcrema/', '--port', '4173'], vi.fn(), {});
+    expect(startStaticServer).toHaveBeenLastCalledWith({ root: path.resolve('web'), base: '/techcrema/' }, 4173);
     await run(['preview'], vi.fn(), { PORT: '9000' });
     expect(startStaticServer).toHaveBeenLastCalledWith(expect.anything(), 9000);
   });

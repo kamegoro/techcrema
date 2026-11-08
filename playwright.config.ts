@@ -10,7 +10,7 @@ export default defineConfig({
   retries: 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: `http://127.0.0.1:${PORT}/tech-catchup/`,
+    baseURL: `http://127.0.0.1:${PORT}/techcrema/`,
     // Fixed so dates, times and number formats render the same everywhere
     locale: 'en-US',
     timezoneId: 'UTC',
@@ -23,8 +23,8 @@ export default defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
-    command: `node src/bin.ts preview --dir web --base /tech-catchup/ --port ${PORT}`,
-    url: `http://127.0.0.1:${PORT}/tech-catchup/`,
+    command: `node src/bin.ts preview --dir web --base /techcrema/ --port ${PORT}`,
+    url: `http://127.0.0.1:${PORT}/techcrema/`,
     reuseExistingServer: !process.env.CI,
   },
 });

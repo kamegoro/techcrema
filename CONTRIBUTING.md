@@ -1,4 +1,4 @@
-# Contributing to Tech Catchup
+# Contributing to TechCrema
 
 Thanks for your interest! Bug reports, new sources, UI translations and docs fixes are all welcome.
 
@@ -10,8 +10,8 @@ Thanks for your interest! Bug reports, new sources, UI translations and docs fix
 - Optional, only for re-recording the README demo: Google Chrome and [ffmpeg](https://ffmpeg.org/)
 
 ```sh
-git clone https://github.com/kamegoro/tech-catchup.git
-cd tech-catchup
+git clone https://github.com/kamegoro/techcrema.git
+cd techcrema
 npm install
 ```
 
@@ -21,18 +21,18 @@ npm install
 npm run check     # Biome lint + type check + unit tests with the 100% coverage gate (what CI runs)
 npm run format    # apply Biome formatting and safe fixes
 npm run e2e       # browser tests (Playwright: iPhone/WebKit, Android/Chromium, desktop)
-npm run collect   # fetch real data using ./tech-catchup.yml
+npm run collect   # fetch real data using ./techcrema.yml
 npm run build     # assemble dist/
 npm run preview   # serve dist/ at http://localhost:8787
 ```
 
 Unit tests run on [Vitest](https://vitest.dev/) and must cover every line, branch, function and statement in `src/`. If a branch can't be reached, remove it rather than excluding it.
 
-Try a different configuration without editing `tech-catchup.yml`, through the same environment variables the action uses:
+Try a different configuration without editing `techcrema.yml`, through the same environment variables the action uses:
 
 ```sh
-TC_LANGUAGE=en TC_PRESETS=rust TECH_CATCHUP_DATA_DIR=/tmp/tc-data npm run collect
-TECH_CATCHUP_DATA_DIR=/tmp/tc-data npm run build && npm run preview
+TC_LANGUAGE=en TC_PRESETS=rust TECHCREMA_DATA_DIR=/tmp/tc-data npm run collect
+TECHCREMA_DATA_DIR=/tmp/tc-data npm run build && npm run preview
 ```
 
 Please don't run `collect` in a tight loop: every run makes real requests to every source.

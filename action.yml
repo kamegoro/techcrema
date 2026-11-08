@@ -1,4 +1,4 @@
-name: Tech Catchup
+name: TechCrema
 description: Publish a personal daily page of trending tech stories that match your interests to GitHub Pages. No server, no database, no AI.
 author: kamegoro
 branding:
@@ -34,7 +34,7 @@ inputs:
     description: 'IANA time zone that decides what "today" is (default: UTC for en, Asia/Tokyo for ja)'
     required: false
   config:
-    description: 'Path to a YAML file with the same settings. Inputs override it. Default: tech-catchup.yml if it exists.'
+    description: 'Path to a YAML file with the same settings. Inputs override it. Default: techcrema.yml if it exists.'
     required: false
   deploy:
     description: 'Deploy to GitHub Pages. Set to false to only collect and build, e.g. to try out settings.'
@@ -43,7 +43,7 @@ inputs:
   cache-key:
     description: 'Name of the Actions cache that keeps score history between runs. Use a different one per page if one repository builds several.'
     required: false
-    default: tech-catchup-data
+    default: techcrema-data
   qiita-token:
     description: 'Optional Qiita access token for a higher rate limit'
     required: false
@@ -72,7 +72,7 @@ runs:
     # Score history (last 14 days) and the list of already-shown stories carry over between runs
     - uses: actions/cache/restore@v6
       with:
-        path: ${{ runner.temp }}/tech-catchup-data
+        path: ${{ runner.temp }}/techcrema-data
         key: ${{ inputs.cache-key }}-${{ github.run_id }}
         restore-keys: ${{ inputs.cache-key }}-
 
@@ -80,8 +80,8 @@ runs:
       shell: bash
       working-directory: ${{ github.workspace }}
       env:
-        TECH_CATCHUP_DATA_DIR: ${{ runner.temp }}/tech-catchup-data
-        TECH_CATCHUP_CONFIG: ${{ inputs.config }}
+        TECHCREMA_DATA_DIR: ${{ runner.temp }}/techcrema-data
+        TECHCREMA_CONFIG: ${{ inputs.config }}
         TC_LANGUAGE: ${{ inputs.language }}
         TC_PRESETS: ${{ inputs.presets }}
         TC_TOPICS: ${{ inputs.topics }}
@@ -97,20 +97,20 @@ runs:
 
     - uses: actions/cache/save@v6
       with:
-        path: ${{ runner.temp }}/tech-catchup-data
+        path: ${{ runner.temp }}/techcrema-data
         key: ${{ inputs.cache-key }}-${{ github.run_id }}-${{ github.run_attempt }}
 
     - name: Build
       shell: bash
       env:
-        TECH_CATCHUP_DATA_DIR: ${{ runner.temp }}/tech-catchup-data
-        TECH_CATCHUP_OUT_DIR: ${{ runner.temp }}/tech-catchup-site
+        TECHCREMA_DATA_DIR: ${{ runner.temp }}/techcrema-data
+        TECHCREMA_OUT_DIR: ${{ runner.temp }}/techcrema-site
       run: node "$GITHUB_ACTION_PATH/src/bin.ts" build
 
     - uses: actions/upload-pages-artifact@v5
       if: inputs.deploy == 'true'
       with:
-        path: ${{ runner.temp }}/tech-catchup-site
+        path: ${{ runner.temp }}/techcrema-site
 
     - id: deployment
       if: inputs.deploy == 'true'

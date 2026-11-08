@@ -1,6 +1,6 @@
-# Copy this file to .github/workflows/tech-catchup.yml in your repository,
+# Copy this file to .github/workflows/techcrema.yml in your repository,
 # then set Settings → Pages → Source to "GitHub Actions" and run it once from the Actions tab.
-name: Tech Catchup
+name: TechCrema
 
 on:
   schedule:
@@ -21,10 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.catchup.outputs.page_url }}
+      url: ${{ steps.techcrema.outputs.page_url }}
     steps:
-      - id: catchup
-        uses: kamegoro/tech-catchup@v1
+      - id: techcrema
+        uses: kamegoro/techcrema@v1
         with:
           language: en
           topics: |

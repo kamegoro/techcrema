@@ -1,4 +1,4 @@
-// Tech Catchup in the browser. Text from outside (titles etc.) only ever goes in via textContent, never innerHTML.
+// TechCrema in the browser. Text from outside (titles etc.) only ever goes in via textContent, never innerHTML.
 import { formatDate, formatTime, setLanguage, t, timeAgo, translateDocument } from './i18n.js';
 
 const SOURCE_LABELS = {
@@ -14,7 +14,7 @@ const SOURCE_LABELS = {
   github_release: 'Release',
 };
 const LANG_LABELS = { ja: 'JP', en: 'EN', zh: 'ZH' };
-const STATE_KEY = 'tc-state-v1';
+const STATE_KEY = 'techcrema-state-v1';
 /** Keep at most this many read/liked keys (oldest dropped first) so localStorage doesn't fill up */
 const MAX_KEYS = 3000;
 const MAX_LATER = 300;

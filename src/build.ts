@@ -1,12 +1,12 @@
 /**
  * Assembles the static site: everything in web/ plus feed.json, ready for GitHub Pages.
- * Output goes to dist/ (or TECH_CATCHUP_OUT_DIR).
+ * Output goes to dist/ (or TECHCREMA_OUT_DIR).
  */
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { dataDir, loadFeed, ROOT } from './store.ts';
 
-export const distDir = () => path.resolve(process.env.TECH_CATCHUP_OUT_DIR ?? path.join(ROOT, 'dist'));
+export const distDir = () => path.resolve(process.env.TECHCREMA_OUT_DIR ?? path.join(ROOT, 'dist'));
 
 export async function build(): Promise<void> {
   const feed = await loadFeed();

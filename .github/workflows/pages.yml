@@ -23,12 +23,12 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.catchup.outputs.page_url }}
+      url: ${{ steps.techcrema.outputs.page_url }}
     steps:
       - uses: actions/checkout@main
         with:
           persist-credentials: false
-      - id: catchup
+      - id: techcrema
         uses: ./
         with:
           qiita-token: ${{ secrets.QIITA_TOKEN }}

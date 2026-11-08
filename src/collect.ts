@@ -128,7 +128,7 @@ export function summarize(config: Config, feed: Feed, counts: Record<string, num
     }
   }
   const lines = [
-    `## ☕ Tech Catchup — ${feed.date}`,
+    `## ☕ TechCrema — ${feed.date}`,
     '',
     `Language \`${config.language}\`, time zone \`${config.timezone}\``,
     '',
@@ -179,5 +179,5 @@ export async function runCollect(env: NodeJS.ProcessEnv, log: (message: string) 
   if (feed.errors.length) log(`  failed: ${feed.errors.map((e) => e.source).join(', ')}`);
   if (topics.length === 0) log('\nTip: add `topics` or `presets` to get a personalized "For you" section.');
   // The scheduled smoke test sets this to fail loudly when a source breaks
-  return env.TECH_CATCHUP_STRICT === '1' && feed.errors.length > 0 ? 1 : 0;
+  return env.TECHCREMA_STRICT === '1' && feed.errors.length > 0 ? 1 : 0;
 }

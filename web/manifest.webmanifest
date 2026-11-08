@@ -1,6 +1,6 @@
 {
-  "name": "Tech Catchup",
-  "short_name": "Catchup",
+  "name": "TechCrema",
+  "short_name": "TechCrema",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f5f6f8",

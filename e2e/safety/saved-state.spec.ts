@@ -7,7 +7,7 @@ test.describe('Saved state', () => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.addInitScript(
-      (value) => localStorage.setItem('tc-state-v1', value),
+      (value) => localStorage.setItem('techcrema-state-v1', value),
       '{"liked": 5, "mute": {"domains": [1, null]}',
     );
     await reader.open(makeFeed());
@@ -17,7 +17,7 @@ test.describe('Saved state', () => {
 
   test('values of the wrong type are ignored', async ({ reader, page }) => {
     await page.addInitScript(
-      (value) => localStorage.setItem('tc-state-v1', value),
+      (value) => localStorage.setItem('techcrema-state-v1', value),
       JSON.stringify({ liked: 'a', read: [1, 2], later: [{ key: 1 }], mute: 'alpha.dev' }),
     );
     await reader.open(makeFeed());

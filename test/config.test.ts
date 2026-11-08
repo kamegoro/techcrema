@@ -93,10 +93,10 @@ describe('parseOfficial', () => {
 });
 
 describe('loadConfig', () => {
-  it('reads tech-catchup.yml when present and works without it', async () => {
+  it('reads techcrema.yml when present and works without it', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'tc-config-'));
     expect((await loadConfig({}, dir)).language).toBe('en');
-    await writeFile(path.join(dir, 'tech-catchup.yml'), 'language: ja\ntopics:\n  neovim: [neovim]\n');
+    await writeFile(path.join(dir, 'techcrema.yml'), 'language: ja\ntopics:\n  neovim: [neovim]\n');
     const c = await loadConfig({ TC_TITLE: 'Hi' }, dir);
     expect(c.language).toBe('ja');
     expect(c.title).toBe('Hi');
@@ -105,7 +105,7 @@ describe('loadConfig', () => {
 
   it('fails when an explicitly named file is missing', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'tc-config-'));
-    await expect(loadConfig({ TECH_CATCHUP_CONFIG: 'nope.yml' }, dir)).rejects.toThrow(/ENOENT/);
+    await expect(loadConfig({ TECHCREMA_CONFIG: 'nope.yml' }, dir)).rejects.toThrow(/ENOENT/);
   });
 });
 
@@ -179,9 +179,9 @@ describe('validation of hand-written settings', () => {
 
   it('an empty config file is fine, but its top level must be a mapping', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'tc-config-'));
-    await writeFile(path.join(dir, 'tech-catchup.yml'), '# nothing yet\n');
+    await writeFile(path.join(dir, 'techcrema.yml'), '# nothing yet\n');
     expect((await loadConfig({}, dir)).language).toBe('en');
-    await writeFile(path.join(dir, 'tech-catchup.yml'), '- language: ja\n');
+    await writeFile(path.join(dir, 'techcrema.yml'), '- language: ja\n');
     await expect(loadConfig({}, dir)).rejects.toThrow(/expected a mapping at the top level/);
   });
 });

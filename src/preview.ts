@@ -15,7 +15,7 @@ const CONTENT_TYPES: Record<string, string> = {
 
 export interface StaticSite {
   root: string;
-  /** URL path the site lives under, e.g. "/" or "/tech-catchup/" */
+  /** URL path the site lives under, e.g. "/" or "/techcrema/" */
   base: string;
 }
 

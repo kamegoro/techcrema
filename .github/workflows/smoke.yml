@@ -19,7 +19,7 @@ jobs:
         language: [en, ja]
     env:
       # Fail the run when any source fails
-      TECH_CATCHUP_STRICT: '1'
+      TECHCREMA_STRICT: '1'
     steps:
       - uses: actions/checkout@main
         with:

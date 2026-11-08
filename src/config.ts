@@ -54,7 +54,7 @@ export const LANGUAGE_DEFAULTS: Record<Language, Config> = {
   en: {
     language: 'en',
     presets: [],
-    title: 'Tech Catchup',
+    title: 'TechCrema',
     timezone: 'UTC',
     sources: ['hackernews', 'lobsters', 'devto', 'huggingface', 'github'],
     topics: {},
@@ -65,7 +65,7 @@ export const LANGUAGE_DEFAULTS: Record<Language, Config> = {
   ja: {
     language: 'ja',
     presets: [],
-    title: 'Tech Catchup',
+    title: 'TechCrema',
     timezone: 'Asia/Tokyo',
     sources: ['hatena', 'zenn', 'qiita', 'hackernews', 'lobsters', 'devto', 'huggingface', 'github'],
     topics: {},
@@ -281,12 +281,12 @@ export function inputsFromEnv(env: NodeJS.ProcessEnv): ConfigSource {
 }
 
 /**
- * Reads the YAML file at TECH_CATCHUP_CONFIG (or ./tech-catchup.yml if present)
+ * Reads the YAML file at TECHCREMA_CONFIG (or ./techcrema.yml if present)
  * and applies action inputs on top.
  */
 export async function loadConfig(env: NodeJS.ProcessEnv = process.env, cwd = process.cwd()): Promise<Config> {
-  const explicit = env.TECH_CATCHUP_CONFIG?.trim();
-  const file = path.resolve(cwd, explicit || 'tech-catchup.yml');
+  const explicit = env.TECHCREMA_CONFIG?.trim();
+  const file = path.resolve(cwd, explicit || 'techcrema.yml');
   let parsed: ConfigSource = {};
   try {
     const raw = parseYaml(await readFile(file, 'utf8')) as unknown;

@@ -16,7 +16,7 @@ const siteDir = path.resolve(process.argv[2] ?? 'dist');
 const outDir = path.resolve(process.argv[3] ?? 'docs');
 const PHONE = { width: 390, height: 780 };
 
-const { server, url: base } = await startStaticServer({ root: siteDir, base: '/tech-catchup/' }, 0);
+const { server, url: base } = await startStaticServer({ root: siteDir, base: '/techcrema/' }, 0);
 
 const browser = await chromium.launch({ channel: 'chrome' });
 await mkdir(outDir, { recursive: true });
@@ -88,7 +88,9 @@ await page.evaluate(() => scrollTo(0, 0));
 await forYou.scrollIntoViewIfNeeded();
 await page.evaluate(() => scrollBy(0, -70));
 await pause(700);
-await forYou.getByRole('article').first().getByRole('button', { name: 'Mute' }).tap();
+// A Hacker News link usually comes from a site that appears once, so the refill from spares is visible
+const hnStory = forYou.getByRole('article').filter({ has: page.getByRole('link', { name: /^Discussion on HN/ }) });
+await hnStory.first().getByRole('button', { name: 'Mute' }).tap();
 await pause(1000);
 await page
   .getByRole('dialog')

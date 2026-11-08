@@ -7,7 +7,7 @@ test.describe('Today page', () => {
     await reader.open(makeFeed());
     await expect(page.getByRole('banner')).toMatchAriaSnapshot(`
       - banner:
-        - heading "Tech Catchup" [level=1]
+        - heading "TechCrema" [level=1]
         - paragraph: Sun, November 8 · updated 08:00 AM
         - button "Reload"
         - 'button "Theme: System (tap to change)"'

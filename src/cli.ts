@@ -7,9 +7,9 @@ import { startStaticServer } from './preview.ts';
 export type Log = (message: string) => void;
 
 const USAGE = `Usage:
-  tech-catchup collect                                   fetch and rank; writes feed.json
-  tech-catchup build                                     assemble the static site
-  tech-catchup preview [--dir DIR] [--base PATH] [--port N]  serve a built site locally`;
+  techcrema collect                                   fetch and rank; writes feed.json
+  techcrema build                                     assemble the static site
+  techcrema preview [--dir DIR] [--base PATH] [--port N]  serve a built site locally`;
 
 /** Runs one command and returns the exit code */
 export async function run(

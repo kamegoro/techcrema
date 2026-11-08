@@ -1,5 +1,5 @@
 {
-  "name": "tech-catchup",
+  "name": "techcrema",
   "version": "0.2.0",
   "private": true,
   "description": "Your own daily tech front page: popular stories from Hacker News, Lobsters, dev.to and more, filtered to your interests, published to GitHub Pages by a GitHub Action",
@@ -35,7 +35,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kamegoro/tech-catchup.git"
+    "url": "git+https://github.com/kamegoro/techcrema.git"
   },
   "keywords": [
     "github-action",

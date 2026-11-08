@@ -11,8 +11,8 @@ let out: string;
 beforeEach(async () => {
   const tmp = await mkdtemp(path.join(tmpdir(), 'tc-build-'));
   out = path.join(tmp, 'site');
-  vi.stubEnv('TECH_CATCHUP_DATA_DIR', path.join(tmp, 'data'));
-  vi.stubEnv('TECH_CATCHUP_OUT_DIR', out);
+  vi.stubEnv('TECHCREMA_DATA_DIR', path.join(tmp, 'data'));
+  vi.stubEnv('TECHCREMA_OUT_DIR', out);
 });
 
 describe('build', () => {
@@ -39,7 +39,7 @@ describe('build', () => {
 
 describe('distDir', () => {
   it('defaults to dist/ in the project', () => {
-    vi.stubEnv('TECH_CATCHUP_OUT_DIR', undefined);
+    vi.stubEnv('TECHCREMA_OUT_DIR', undefined);
     expect(distDir()).toBe(path.join(ROOT, 'dist'));
   });
 });

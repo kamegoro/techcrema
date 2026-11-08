@@ -5,7 +5,7 @@ import type { SeenEntry } from './rank.ts';
 import type { Feed } from './types.ts';
 
 export const ROOT = path.resolve(import.meta.dirname, '..');
-export const dataDir = () => process.env.TECH_CATCHUP_DATA_DIR ?? path.join(ROOT, 'data');
+export const dataDir = () => process.env.TECHCREMA_DATA_DIR ?? path.join(ROOT, 'data');
 
 const FEED_FILE = 'feed.json';
 const SEEN_FILE = 'seen.json';

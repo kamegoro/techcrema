@@ -1,15 +1,15 @@
 <div align="center">
 
-# ☕ Tech Catchup
+# ☕ TechCrema
 
 **Your daily tech front page, built by a GitHub Action.**
 
 What's popular on Hacker News, Lobsters, dev.to and more, filtered to what you care about.<br>
 One page a day, made for your phone. No server, no database, no AI.
 
-**[Live demo](https://kamegoro.github.io/tech-catchup/)**
+**[Live demo](https://kamegoro.github.io/techcrema/)**
 
-<a href="https://github.com/kamegoro/tech-catchup/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kamegoro/tech-catchup/ci.yml?branch=main&label=CI&logo=github&style=flat"></a>
+<a href="https://github.com/kamegoro/techcrema/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kamegoro/techcrema/ci.yml?branch=main&label=CI&logo=github&style=flat"></a>
 <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue?style=flat"></a>
 
 <img src="docs/demo.gif" alt="Skimming the day's sections, muting a site, saving a story for later and switching to dark mode" width="300" />
@@ -19,7 +19,7 @@ One page a day, made for your phone. No server, no database, no AI.
 ## Why
 
 RSS readers show you everything. Aggregators show you what's popular for everyone.
-Tech Catchup shows the overlap: **popular right now _and_ about your topics**, plus a few hits from outside your bubble.
+TechCrema shows the overlap: **popular right now _and_ about your topics**, plus a few hits from outside your bubble.
 
 - ⚖️ **Fair across sites**: 300 HN points and 300 Hatena bookmarks don't mean the same thing, so every score becomes a percentile within its own site ([how it works](docs/how-it-works.md))
 - 🧭 **Five short sections**: Official releases, For you, Trending, Discover and New repos
@@ -29,10 +29,10 @@ Tech Catchup shows the overlap: **popular right now _and_ about your topics**, p
 
 ## Quick start
 
-1. Create a public repository and add `.github/workflows/tech-catchup.yml`:
+1. Create a public repository and add `.github/workflows/techcrema.yml`:
 
    ```yaml
-   name: Tech Catchup
+   name: TechCrema
    on:
      schedule: [{ cron: '0 6 * * *' }]   # daily, 06:00 UTC
      workflow_dispatch:
@@ -40,16 +40,16 @@ Tech Catchup shows the overlap: **popular right now _and_ about your topics**, p
    jobs:
      publish:
        runs-on: ubuntu-latest
-       environment: { name: github-pages, url: '${{ steps.catchup.outputs.page_url }}' }
+       environment: { name: github-pages, url: '${{ steps.techcrema.outputs.page_url }}' }
        steps:
-         - id: catchup
-           uses: kamegoro/tech-catchup@v1
+         - id: techcrema
+           uses: kamegoro/techcrema@v1
            with:
              presets: frontend, ai   # or write your own topics, see below
    ```
 
 2. **Settings → Pages → Source: GitHub Actions**
-3. **Actions → Tech Catchup → Run workflow**, and open `https://<you>.github.io/<repo>/`
+3. **Actions → TechCrema → Run workflow**, and open `https://<you>.github.io/<repo>/`
 
 ## Examples
 
@@ -81,7 +81,7 @@ presets: ai, frontend
 timezone: Asia/Tokyo
 ```
 
-**Keep settings in a file** — add `- uses: actions/checkout@v7` before the step, and put the same keys in [`tech-catchup.yml`](tech-catchup.yml).
+**Keep settings in a file** — add `- uses: actions/checkout@v7` before the step, and put the same keys in [`techcrema.yml`](techcrema.yml).
 
 All options: **[docs/configuration.md](docs/configuration.md)** · How ranking works: **[docs/how-it-works.md](docs/how-it-works.md)**
 

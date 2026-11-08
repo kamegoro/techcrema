@@ -14,8 +14,8 @@ afterEach(() => {
 describe('userAgent', () => {
   it('names the repository running the job, and falls back to this project', () => {
     expect(userAgent({ GITHUB_REPOSITORY: 'alice/my-feed' })).toContain('github.com/alice/my-feed');
-    expect(userAgent({})).toContain('github.com/kamegoro/tech-catchup');
-    expect(userAgent({ GITHUB_REPOSITORY: 'not a repo' })).toContain('github.com/kamegoro/tech-catchup');
+    expect(userAgent({})).toContain('github.com/kamegoro/techcrema');
+    expect(userAgent({ GITHUB_REPOSITORY: 'not a repo' })).toContain('github.com/kamegoro/techcrema');
   });
 });
 
@@ -27,7 +27,7 @@ describe('politeFetch', () => {
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        headers: { 'User-Agent': expect.stringContaining('tech-catchup'), Accept: 'text/plain' },
+        headers: { 'User-Agent': expect.stringContaining('techcrema'), Accept: 'text/plain' },
       }),
     );
   });

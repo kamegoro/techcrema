@@ -21,18 +21,18 @@ afterEach(() => {
 });
 
 describe('resolveRequest', () => {
-  const site = () => ({ root, base: '/tech-catchup/' });
+  const site = () => ({ root, base: '/techcrema/' });
 
   it('maps the base path and directories to index.html', () => {
-    expect(resolveRequest(site(), '/tech-catchup/')).toBe(path.join(root, 'index.html'));
-    expect(resolveRequest(site(), '/tech-catchup/sub/')).toBe(path.join(root, 'sub', 'index.html'));
-    expect(resolveRequest(site(), '/tech-catchup/feed.json?x=1')).toBe(path.join(root, 'feed.json'));
+    expect(resolveRequest(site(), '/techcrema/')).toBe(path.join(root, 'index.html'));
+    expect(resolveRequest(site(), '/techcrema/sub/')).toBe(path.join(root, 'sub', 'index.html'));
+    expect(resolveRequest(site(), '/techcrema/feed.json?x=1')).toBe(path.join(root, 'feed.json'));
   });
 
   it('refuses paths outside the base or the directory, and unknown file types', () => {
     expect(resolveRequest(site(), '/other/feed.json')).toBeNull();
-    expect(resolveRequest(site(), '/tech-catchup/..%2F..%2Fetc%2Fpasswd.json')).toBeNull();
-    expect(resolveRequest(site(), '/tech-catchup/secret.env')).toBeNull();
+    expect(resolveRequest(site(), '/techcrema/..%2F..%2Fetc%2Fpasswd.json')).toBeNull();
+    expect(resolveRequest(site(), '/techcrema/secret.env')).toBeNull();
   });
 });
 

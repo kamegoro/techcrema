@@ -30,7 +30,7 @@ body:
   - type: textarea
     id: config
     attributes:
-      label: Your workflow step or tech-catchup.yml
+      label: Your workflow step or techcrema.yml
       description: Remove anything you consider private.
       render: yaml
 

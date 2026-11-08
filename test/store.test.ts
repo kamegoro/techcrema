@@ -20,12 +20,12 @@ let dir: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(path.join(tmpdir(), 'tc-store-'));
-  vi.stubEnv('TECH_CATCHUP_DATA_DIR', dir);
+  vi.stubEnv('TECHCREMA_DATA_DIR', dir);
 });
 
 describe('dataDir', () => {
   it('defaults to data/ in the project', () => {
-    vi.stubEnv('TECH_CATCHUP_DATA_DIR', undefined);
+    vi.stubEnv('TECHCREMA_DATA_DIR', undefined);
     expect(dataDir()).toBe(path.join(ROOT, 'data'));
   });
 });

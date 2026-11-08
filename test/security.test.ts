@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { readLimited } from '../src/http.ts';
-import { parseFeed } from '../src/feed-parser.ts';
+import { hasDtd, parseFeed } from '../src/feed-parser.ts';
 import { mergeIntoStories } from '../src/normalize.ts';
 import { isHttpUrl } from '../src/security.ts';
 import type { RawItem } from '../src/types.ts';
@@ -19,6 +19,14 @@ describe('defending against outside data', () => {
   it('rejects feeds with a DTD (entity expansion attacks)', () => {
     const xml = `<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol">]><rss><channel><item><title>&lol;</title></item></channel></rss>`;
     assert.throws(() => parseFeed(xml), /DTD/);
+  });
+
+  it('accepts a DOCTYPE that is only text inside CDATA, but not one hidden after it', () => {
+    const embedded = `<?xml version="1.0"?><rss><channel><item><title>ok</title><link>https://example.com/a</link>
+      <description><![CDATA[<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0//EN"><html></html>]]></description></item></channel></rss>`;
+    assert.equal(parseFeed(embedded).length, 1);
+    assert.equal(hasDtd('<!-- <!DOCTYPE x> --><rss/>'), false);
+    assert.equal(hasDtd('<![CDATA[x]]><!DOCTYPE r [<!ENTITY a "b">]><rss/>'), true);
   });
 
   it('stops reading responses over the size limit', async () => {

@@ -9,6 +9,9 @@ inputs:
   language:
     description: 'UI language and the default set of sources: en or ja'
     required: false
+  presets:
+    description: 'Comma-separated ready-made interests: frontend, node, rust, go, python, ai, devops, security, neovim'
+    required: false
   topics:
     description: 'What you care about, as YAML. e.g. "rust: [rust, cargo]" one per line'
     required: false
@@ -80,6 +83,7 @@ runs:
         TECH_CATCHUP_DATA_DIR: ${{ runner.temp }}/tech-catchup-data
         TECH_CATCHUP_CONFIG: ${{ inputs.config }}
         TC_LANGUAGE: ${{ inputs.language }}
+        TC_PRESETS: ${{ inputs.presets }}
         TC_TOPICS: ${{ inputs.topics }}
         TC_SOURCES: ${{ inputs.sources }}
         TC_OFFICIAL: ${{ inputs.official }}

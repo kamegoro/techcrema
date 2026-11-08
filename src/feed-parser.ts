@@ -49,16 +49,26 @@ function atomLink(link: unknown): string {
   return typeof alternate === 'string' ? alternate : (alternate['@_href'] ?? '');
 }
 
+/**
+ * True when the document declares a DTD or entities. Text inside CDATA sections and comments
+ * is ignored: feeds often embed whole HTML pages there (GitHub's blog includes "<!DOCTYPE html …>"),
+ * and the parser treats that text as plain characters.
+ */
+export function hasDtd(xml: string): boolean {
+  const outsideText = xml.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '').replace(/<!--[\s\S]*?-->/g, '');
+  return /<!DOCTYPE|<!ENTITY/i.test(outsideText);
+}
+
 /** Title of the feed itself (channel/feed title), used as the publisher name when none is configured */
 export function parseFeedTitle(xml: string): string {
-  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) return '';
+  if (hasDtd(xml)) return '';
   const doc = parser.parse(xml) as Record<string, any>;
   return text(doc.rss?.channel?.title) || text(doc['rdf:RDF']?.channel?.title) || text(doc.feed?.title);
 }
 
 export function parseFeed(xml: string): FeedEntry[] {
   // RSS/Atom never needs a DTD. Rejecting it rules out entity-expansion attacks such as Billion Laughs.
-  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) {
+  if (hasDtd(xml)) {
     throw new Error('Feeds with a DTD are not accepted');
   }
   const doc = parser.parse(xml) as Record<string, any>;

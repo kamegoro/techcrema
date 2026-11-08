@@ -7,7 +7,8 @@ A complete workflow with every common option is in [examples/workflow.yml](../ex
 | Input | Description | Default |
 |---|---|---|
 | `language` | `en` or `ja`. Sets the UI language and the default sources | `en` |
-| `topics` | What you care about, as YAML (see below) | none |
+| `presets` | Comma-separated ready-made interests (see [Presets](#presets)) | none |
+| `topics` | Your own interests, as YAML (see [Topics](#topics)) | none |
 | `sources` | Comma-separated ids from [Sources](#sources) | depends on `language` |
 | `official` | One per line: an RSS/Atom URL (optionally `Name https://…`), or `owner/repo` for GitHub releases | none |
 | `mute-keywords` | Comma-separated keywords to never show | none |
@@ -18,6 +19,30 @@ A complete workflow with every common option is in [examples/workflow.yml](../ex
 | `deploy` | `false` collects and builds without publishing — handy for trying settings (see the run summary) | `true` |
 | `qiita-token` | Optional Qiita token for a higher rate limit | none |
 | `cache-key` | Name of the Actions cache that keeps the score history; use a different one per page if one repository builds several | `tech-catchup-data` |
+
+## Presets
+
+A preset adds a topic with a tested keyword list, plus the official blogs and releases worth following for it.
+Combine them freely and add your own `topics` on top; a topic of yours with the same name replaces the preset's.
+
+```yaml
+with:
+  presets: frontend, ai
+```
+
+| Preset | For | Keywords (some) | Follows |
+|---|---|---|---|
+| `frontend` | Web front end: frameworks, CSS, browsers | react, vue, svelte, angular, solid.js, css, … | React, web.dev, Chrome for Developers, TypeScript, vitejs/vite releases, vercel/next.js releases |
+| `node` | Server-side JavaScript runtimes and tooling | node.js, nodejs, npm, pnpm, yarn, deno, … | Node.js, Deno, Bun, nodejs/node releases |
+| `rust` | The Rust language and ecosystem | rust, rustc, cargo, crates.io, tokio, rustacean | Rust Blog, This Week in Rust, rust-lang/rust releases |
+| `go` | The Go language | golang, goroutine, goroutines, in go, go modules, go generics | The Go Blog |
+| `python` | Python and its tooling | python, cpython, pip, uv, django, fastapi, … | Python Insider, astral-sh/uv releases |
+| `ai` | LLMs, agents and machine learning | llm, llms, gpt, chatgpt, claude, gemini, … | OpenAI, Google DeepMind, Hugging Face |
+| `devops` | Containers, Kubernetes, CI/CD and operations | kubernetes, k8s, docker, container, containers, terraform, … | Kubernetes, Docker, GitHub Changelog, kubernetes/kubernetes releases |
+| `security` | Vulnerabilities, exploits and supply-chain security | security, vulnerability, vulnerabilities, cve, exploit, zero-day, … | Project Zero, GitHub Security Lab |
+| `neovim` | Neovim and Vim | neovim, nvim, vim, lua, treesitter, tree-sitter, … | Neovim, neovim/neovim releases |
+
+Missing one? Presets live in [`src/presets.ts`](../src/presets.ts); pull requests are welcome.
 
 ## Topics
 

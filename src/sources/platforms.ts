@@ -188,7 +188,6 @@ interface GithubRepo {
   html_url: string;
   description: string | null;
   stargazers_count: number;
-  language: string | null;
   topics?: string[];
   created_at: string;
 }
@@ -206,7 +205,9 @@ export async function fetchGithubNewRepos(now: Date): Promise<RawItem[]> {
     url: r.html_url,
     score: r.stargazers_count,
     scoreLabel: '★',
-    tags: [...(r.language ? [r.language] : []), ...(r.topics ?? [])],
+    // Topics only: the implementation language says little about what a repo is for
+    // (every TypeScript repo would otherwise match a "typescript" or "frontend" topic)
+    tags: r.topics ?? [],
     publishedAt: r.created_at,
   }));
 }

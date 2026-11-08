@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { ConfigError, loadConfig, parseOfficial, parseTopics, resolveConfig } from '../src/config.ts';
+import { PRESET_NAMES } from '../src/presets.ts';
 
 describe('resolveConfig', () => {
   it('defaults to the English preset', () => {
@@ -96,5 +97,42 @@ describe('loadConfig', () => {
   it('fails when an explicitly named file is missing', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'tc-config-'));
     await assert.rejects(() => loadConfig({ TECH_CATCHUP_CONFIG: 'nope.yml' }, dir), /ENOENT/);
+  });
+});
+
+describe('topic presets', () => {
+  it('add topics and official feeds, with the user\'s own settings winning', () => {
+    const c = resolveConfig(
+      { presets: 'rust, ai', topics: { ai: ['claude'] }, official: ['Rust https://blog.rust-lang.org/feed.xml', 'my/repo'] },
+      {},
+    );
+    assert.deepEqual(c.presets, ['rust', 'ai']);
+    assert.ok(c.topics.rust!.keywords.includes('cargo'));
+    assert.deepEqual(c.topics.ai, { weight: 1, keywords: ['claude'] });
+    // The same feed URL from the preset and the user appears once, with the user's name
+    assert.deepEqual(c.official.feeds.filter((f) => f.url === 'https://blog.rust-lang.org/feed.xml'), [
+      { name: 'Rust', url: 'https://blog.rust-lang.org/feed.xml' },
+    ]);
+    assert.ok(c.official.releases.includes('rust-lang/rust') && c.official.releases.includes('my/repo'));
+  });
+
+  it('rejects unknown presets', () => {
+    assert.throws(() => resolveConfig({}, { presets: 'cobol' }), /unknown preset "cobol"/);
+  });
+
+  it('every preset is valid', () => {
+    for (const name of PRESET_NAMES) {
+      const c = resolveConfig({ presets: [name] }, {});
+      assert.ok(Object.keys(c.topics).length > 0, name);
+      assert.ok(c.official.feeds.length + c.official.releases.length > 0, name);
+    }
+  });
+});
+
+describe('docs', () => {
+  it('lists every preset in docs/configuration.md', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const doc = await readFile(new URL('../docs/configuration.md', import.meta.url), 'utf8');
+    for (const name of PRESET_NAMES) assert.match(doc, new RegExp(`\\| \`${name}\` \\|`), name);
   });
 });

@@ -256,4 +256,19 @@ describe('buildSections', () => {
     const keys = sectionKeys(buildSections({ stories, layout, language: 'en', today, now, seen: {} }));
     assert.deepEqual(keys.repos, ['en-warm']);
   });
+
+  it('keeps one topic to about half of "For you" while other topics have stories', () => {
+    const ai = ['a1', 'a2', 'a3', 'a4'].map((k, i) => story({ key: k, interest: 1, topics: ['ai'], pop: 0.99 - i * 0.01 }));
+    const rust = story({ key: 'r1', interest: 1, topics: ['rust'], pop: 0.5 });
+    const wide = { ...layout, for_you: 4 };
+    const keys = sectionKeys(buildSections({ stories: [...ai, rust], layout: wide, language: 'en', today, now, seen: {} }));
+    assert.deepEqual(keys.forYou, ['a1', 'a2', 'a3', 'r1']);
+  });
+
+  it('still fills "For you" when only one topic has stories', () => {
+    const ai = ['a1', 'a2', 'a3', 'a4'].map((k) => story({ key: k, interest: 1, topics: ['ai'] }));
+    const wide = { ...layout, for_you: 4 };
+    const keys = sectionKeys(buildSections({ stories: ai, layout: wide, language: 'en', today, now, seen: {} }));
+    assert.equal(keys.forYou!.length, 4);
+  });
 });

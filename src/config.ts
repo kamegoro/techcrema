@@ -1,10 +1,12 @@
 /**
- * Configuration: a language preset, overridden by an optional YAML file,
+ * Configuration: language defaults, overridden by an optional YAML file,
  * overridden by GitHub Action inputs (passed in as TC_* environment variables).
+ * Topic presets (src/presets.ts) add topics and official feeds on top.
  */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
+import { PRESET_NAMES, PRESETS_BY_NAME, type PresetName } from './presets.ts';
 import type { LayoutConfig } from './types.ts';
 
 export const LANGUAGES = ['en', 'ja'] as const;
@@ -21,6 +23,8 @@ export interface Topic {
 
 export interface Config {
   language: Language;
+  /** Topic presets that were applied */
+  presets: PresetName[];
   /** Page title shown in the header and browser tab */
   title: string;
   /** IANA time zone used to decide what "today" is */
@@ -43,9 +47,10 @@ const BASE_LAYOUT: LayoutConfig = {
   max_source_ratio: 0.4,
 };
 
-export const PRESETS: Record<Language, Config> = {
+export const LANGUAGE_DEFAULTS: Record<Language, Config> = {
   en: {
     language: 'en',
+    presets: [],
     title: 'Tech Catchup',
     timezone: 'UTC',
     sources: ['hackernews', 'lobsters', 'devto', 'huggingface', 'github'],
@@ -56,6 +61,7 @@ export const PRESETS: Record<Language, Config> = {
   },
   ja: {
     language: 'ja',
+    presets: [],
     title: 'Tech Catchup',
     timezone: 'Asia/Tokyo',
     sources: ['hatena', 'zenn', 'qiita', 'hackernews', 'lobsters', 'devto', 'huggingface', 'github'],
@@ -170,6 +176,16 @@ export function parseOfficial(value: unknown): Config['official'] {
   return result;
 }
 
+export function parsePresets(value: unknown): PresetName[] {
+  const names = list(value, 'presets').map((s) => s.toLowerCase());
+  for (const name of names) {
+    if (!(PRESET_NAMES as string[]).includes(name)) {
+      throw new ConfigError(`presets: unknown preset "${name}" (available: ${PRESET_NAMES.join(', ')})`);
+    }
+  }
+  return [...new Set(names)] as PresetName[];
+}
+
 function parseTimezone(value: unknown): string {
   const tz = String(value).trim();
   try {
@@ -196,7 +212,7 @@ function parseLayout(value: unknown, base: LayoutConfig): LayoutConfig {
 // ---------------------------------------------------------------------------
 
 /** Settings as written by a person (YAML file or action inputs). Everything is optional. */
-export type ConfigSource = Partial<Record<'language' | 'title' | 'timezone' | 'sources' | 'topics' | 'official' | 'layout', unknown>> & {
+export type ConfigSource = Partial<Record<'language' | 'presets' | 'title' | 'timezone' | 'sources' | 'topics' | 'official' | 'layout', unknown>> & {
   mute?: unknown;
   mute_keywords?: unknown;
   mute_domains?: unknown;
@@ -209,27 +225,38 @@ export function resolveConfig(file: ConfigSource, inputs: ConfigSource): Config 
   const pick = (key: keyof ConfigSource) => (isSet(inputs[key]) ? inputs[key] : isSet(file[key]) ? file[key] : undefined);
 
   const language = parseLanguage(pick('language') ?? 'en');
-  const preset = PRESETS[language];
+  const defaults = LANGUAGE_DEFAULTS[language];
   const fileMute = (file.mute ?? {}) as { keywords?: unknown; domains?: unknown };
   if (typeof fileMute !== 'object') throw new ConfigError('mute: expected { keywords: [...], domains: [...] }');
 
+  const presets = parsePresets(pick('presets'));
   const title = pick('title');
   const timezone = pick('timezone');
   const sources = pick('sources');
   const topics = pick('topics');
   const official = pick('official');
+  // Presets go first, so the user's own topics (same name) and feeds win
+  const presetTopics = Object.assign({}, ...presets.map((p) => PRESETS_BY_NAME[p].topics)) as Record<string, Topic>;
+  const presetOfficial = parseOfficial(presets.flatMap((p) => PRESETS_BY_NAME[p].official));
+  const ownOfficial = official === undefined ? defaults.official : parseOfficial(official);
+  const feedsByUrl = new Map([...presetOfficial.feeds, ...ownOfficial.feeds].map((f) => [f.url, f]));
+
   return {
     language,
-    title: title === undefined ? preset.title : String(title).trim().slice(0, 80),
-    timezone: timezone === undefined ? preset.timezone : parseTimezone(timezone),
-    sources: sources === undefined ? preset.sources : parseSources(sources),
-    topics: topics === undefined ? preset.topics : parseTopics(topics),
+    presets,
+    title: title === undefined ? defaults.title : String(title).trim().slice(0, 80),
+    timezone: timezone === undefined ? defaults.timezone : parseTimezone(timezone),
+    sources: sources === undefined ? defaults.sources : parseSources(sources),
+    topics: { ...presetTopics, ...(topics === undefined ? defaults.topics : parseTopics(topics)) },
     mute: {
       keywords: [...list(fileMute.keywords, 'mute.keywords'), ...list(inputs.mute_keywords, 'mute-keywords')],
       domains: [...list(fileMute.domains, 'mute.domains'), ...list(inputs.mute_domains, 'mute-domains')],
     },
-    official: official === undefined ? preset.official : parseOfficial(official),
-    layout: parseLayout(file.layout, preset.layout),
+    official: {
+      feeds: [...feedsByUrl.values()],
+      releases: [...new Set([...presetOfficial.releases, ...ownOfficial.releases])],
+    },
+    layout: parseLayout(file.layout, defaults.layout),
   };
 }
 
@@ -237,6 +264,7 @@ export function resolveConfig(file: ConfigSource, inputs: ConfigSource): Config 
 export function inputsFromEnv(env: NodeJS.ProcessEnv): ConfigSource {
   return {
     language: env.TC_LANGUAGE,
+    presets: env.TC_PRESETS,
     title: env.TC_TITLE,
     timezone: env.TC_TIMEZONE,
     sources: env.TC_SOURCES,

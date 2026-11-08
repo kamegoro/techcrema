@@ -77,7 +77,7 @@ A source must have a **popularity signal** (points, likes, stars…) and an **of
 
 1. Write a fetcher in `src/sources/platforms.ts` that returns `RawItem[]`: title, url, `score`, a short `scoreLabel` (`'pt'`, `'likes'`…) and `publishedAt`. Set `discussionUrl` when the platform has its own comment page.
 2. Add its id to `SourceId` in `src/types.ts`, `PLATFORMS` in `src/config.ts`, and `PLATFORM_FETCHERS` in `src/collect.ts`.
-3. If it should be on by default for a language, add it to that preset in `PRESETS`.
+3. If it should be on by default for a language, add it to that language in `LANGUAGE_DEFAULTS` in `src/config.ts`.
 4. If the host asks for a crawl delay (check its `robots.txt`), add it to `HOST_INTERVAL_MS` in `src/http.ts`.
 5. Add a badge label in `SOURCE_LABELS` in `web/app.js` and a color in `web/style.css` (`.badge[data-source='…']`).
 6. Add a parsing test with a small fixture in `test/sources.test.ts`, and a row to the Sources table in [docs/configuration.md](docs/configuration.md#sources).
@@ -85,7 +85,7 @@ A source must have a **popularity signal** (points, likes, stars…) and an **of
 ## Adding a UI language
 
 1. Copy the `en` block in `web/i18n.js` and translate every key.
-2. Add the code to `LANGUAGES` and a preset to `PRESETS` in `src/config.ts`, including the sources that make sense for that audience.
+2. Add the code to `LANGUAGES` and defaults to `LANGUAGE_DEFAULTS` in `src/config.ts`, including the sources that make sense for that audience.
 3. Add the language to the `language` row in [docs/configuration.md](docs/configuration.md).
 
 ## Pull requests

@@ -1,34 +1,16 @@
-# Settings for this repository's own feed.
-# Every key is optional. Action inputs with the same name override these values.
-# See README.md#configuration for all options.
+# Settings for the live demo at https://kamegoro.github.io/tech-catchup/
+# Copy this file to your own repository as a starting point. Every key is optional;
+# action inputs with the same name override it. See docs/configuration.md.
 
-language: ja # en | ja — UI language and the default set of sources
+language: en
+title: Tech Catchup demo
 
-# What you care about. A story matching any keyword lands in "For you".
-# ASCII keywords match whole words ("go" does not match "google"); others match as substrings.
+# Ready-made interests: frontend, node, rust, go, python, ai, devops, security, neovim
+presets: [ai, frontend, rust, devops]
+
+# Your own topics. A story whose title or tags contain a keyword lands in "For you".
 topics:
-  neovim: [neovim, nvim, vim, lua, lazy.nvim, treesitter, tree-sitter]
-  typescript: { weight: 0.9, keywords: [typescript, ts, deno, bun, tsgo] }
-  node: { weight: 0.9, keywords: [node.js, nodejs, node, npm, pnpm, v8] }
-  testing: [playwright, e2e, end-to-end, appium, webdriver, testing, テスト, 自動テスト]
-  ai-agent:
-    weight: 0.9
-    keywords: [claude, claude code, agent, agents, ai agent, mcp, llm, codex, エージェント, 生成ai]
-  engineering-management:
-    weight: 0.7
-    keywords: [engineering manager, engineering management, 1on1, 1on1s, マネジメント, エンジニアリングマネージャー, 組織, チームビルディング, 開発生産性, dora]
+  databases: [postgres, postgresql, sqlite, duckdb, database, databases]
 
-# Never show these (title, tags or domain)
 mute:
-  keywords: [web3, crypto, nft, 求人, 採用情報, ポエム]
-
-# Official blogs (RSS/Atom) and GitHub releases, shown whenever there's something new
-official:
-  - Node.js https://nodejs.org/en/feed/blog.xml
-  - TypeScript https://devblogs.microsoft.com/typescript/feed/
-  - Neovim https://neovim.io/news.xml
-  - OpenAI https://openai.com/news/rss.xml
-  - neovim/neovim
-  - microsoft/playwright
-  - nodejs/node
-  - microsoft/TypeScript
+  keywords: [crypto, nft, web3]

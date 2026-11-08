@@ -36,6 +36,9 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run e2e
+        env:
+          # Traces are written to the temp dir; keep them on disk rather than in a small tmpfs /tmp
+          TMPDIR: ${{ runner.temp }}
       - uses: actions/upload-artifact@main
         if: failure()
         with:

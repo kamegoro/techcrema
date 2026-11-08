@@ -8,6 +8,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   // No retries: a test that only passes on the second try is a bug to fix, not to hide
   retries: 0,
+  // The tests mostly wait on the browser, not the CPU, so CI runs two workers per core
+  workers: process.env.CI ? '200%' : undefined,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: `http://127.0.0.1:${PORT}/techcrema/`,

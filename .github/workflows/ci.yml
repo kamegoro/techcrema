@@ -24,7 +24,15 @@ jobs:
       - run: npm run check
 
   e2e:
+    name: e2e (${{ matrix.project }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { project: iphone, browser: webkit }
+          - { project: android, browser: chromium }
+          - { project: desktop, browser: chromium }
     steps:
       - uses: actions/checkout@main
         with:
@@ -34,14 +42,22 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npx playwright install --with-deps chromium webkit
-      - run: npm run e2e
+      - uses: actions/cache@main
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+        if: steps.browsers.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps ${{ matrix.browser }}
+        if: steps.browsers.outputs.cache-hit == 'true'
+      - run: npm run e2e -- --project=${{ matrix.project }}
         env:
           # Traces are written to the temp dir; keep them on disk rather than in a small tmpfs /tmp
           TMPDIR: ${{ runner.temp }}
       - uses: actions/upload-artifact@main
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.project }}
           path: playwright-report
           retention-days: 7

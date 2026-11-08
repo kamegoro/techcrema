@@ -1,0 +1,36 @@
+# 情報源の設定。enabled: false で個別に止められる。
+# 取得はすべて公式API / RSS のみ(HTMLスクレイピングはしない)。
+
+platforms:
+  hackernews: { enabled: true }
+  hatena: { enabled: true }
+  zenn: { enabled: true }
+  qiita: { enabled: true }
+  devto: { enabled: true }
+  lobsters: { enabled: true }
+  huggingface: { enabled: true }
+  github_new_repos: { enabled: true }
+
+# 公式枠に出すRSS/Atom。人気指標がないので、新着は常に表示する。
+official_feeds:
+  - { name: Node.js, url: "https://nodejs.org/en/feed/blog.xml" }
+  - { name: TypeScript, url: "https://devblogs.microsoft.com/typescript/feed/" }
+  - { name: Neovim, url: "https://neovim.io/news.xml" }
+  - { name: OpenAI, url: "https://openai.com/news/rss.xml" }
+
+# 公式枠に出すGitHubリリース(owner/repo)。GitHub REST APIで取得する。
+github_releases:
+  - neovim/neovim
+  - microsoft/playwright
+  - nodejs/node
+  - microsoft/TypeScript
+
+# 1日のページ構成
+layout:
+  official_days: 3 # 公式枠: 何日以内の新着を出すか
+  for_you: 10 # あなた向け
+  for_you_min_japanese: 3 # あなた向けのうち日本語記事を最低何件確保するか
+  trending: 5 # 話題(関心外だが各プラットフォームで上位)
+  discover: 3 # 発見(関心外・そこそこ人気から日替わりランダム)
+  repos: 3 # 新興リポジトリ
+  max_source_ratio: 0.4 # 1セクション内で1プラットフォームが占める上限

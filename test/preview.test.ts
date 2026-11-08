@@ -33,6 +33,7 @@ describe('resolveRequest', () => {
     expect(resolveRequest(site(), '/other/feed.json')).toBeNull();
     expect(resolveRequest(site(), '/techcrema/..%2F..%2Fetc%2Fpasswd.json')).toBeNull();
     expect(resolveRequest(site(), '/techcrema/secret.env')).toBeNull();
+    expect(resolveRequest(site(), '/techcrema/%E0%A4%A')).toBeNull();
   });
 });
 

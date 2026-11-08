@@ -162,6 +162,9 @@ describe('validation of hand-written settings', () => {
   it('topics in the full form default to weight 1, and an empty value means none', () => {
     expect(parseTopics({ db: { keywords: ['sql'] } })).toEqual({ db: { weight: 1, keywords: ['sql'] } });
     expect(parseTopics('')).toEqual({});
+    const odd = parseTopics(JSON.parse('{"__proto__": ["x"]}'));
+    expect(Object.getPrototypeOf(odd)).toBe(Object.prototype);
+    expect(Object.keys(odd)).toEqual(['__proto__']);
   });
 
   it('official feeds written as objects need a URL and may omit the name', () => {
@@ -175,6 +178,7 @@ describe('validation of hand-written settings', () => {
     expect(() => resolveConfig({ layout: 5 }, {})).toThrow(/layout: expected a mapping/);
     expect(() => resolveConfig({ layout: [1] }, {})).toThrow(/layout: expected a mapping/);
     expect(() => resolveConfig({ layout: { trending: -1 } }, {})).toThrow(/expected a non-negative number/);
+    expect(() => resolveConfig({ layout: { toString: 5 } }, {})).toThrow(/layout.toString: unknown setting/);
   });
 
   it('an empty config file is fine, but its top level must be a mapping', async () => {

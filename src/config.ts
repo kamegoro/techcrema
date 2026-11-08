@@ -134,14 +134,15 @@ export function parseTopics(value: unknown): Record<string, Topic> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new ConfigError('topics: expected a mapping like "rust: [rust, cargo]"');
   }
-  const topics: Record<string, Topic> = {};
-  for (const [name, def] of Object.entries(raw as Record<string, unknown>)) {
-    const field = `topics.${name}`;
-    const topic = parseTopic(def, field);
-    if (topic.keywords.length === 0) throw new ConfigError(`${field}: needs at least one keyword`);
-    topics[name] = topic;
-  }
-  return topics;
+  // fromEntries defines own properties, so a topic named "__proto__" can't change the object's prototype
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>).map(([name, def]) => {
+      const field = `topics.${name}`;
+      const topic = parseTopic(def, field);
+      if (topic.keywords.length === 0) throw new ConfigError(`${field}: needs at least one keyword`);
+      return [name, topic];
+    }),
+  );
 }
 
 const REPO_PATTERN = /^[\w.-]+\/[\w.-]+$/;
@@ -204,7 +205,7 @@ function parseLayout(value: unknown, base: LayoutConfig): LayoutConfig {
   if (typeof value !== 'object' || Array.isArray(value)) throw new ConfigError('layout: expected a mapping');
   const layout = { ...base };
   for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
-    if (!(key in base))
+    if (!Object.hasOwn(base, key))
       throw new ConfigError(`layout.${key}: unknown setting (available: ${Object.keys(base).join(', ')})`);
     const n = Number(v);
     if (!Number.isFinite(n) || n < 0) throw new ConfigError(`layout.${key}: expected a non-negative number`);

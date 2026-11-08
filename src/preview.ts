@@ -21,7 +21,12 @@ export interface StaticSite {
 
 /** Path on disk for a request, or null when it is outside the site or not a file type we serve */
 export function resolveRequest(site: StaticSite, url: string): string | null {
-  const pathname = decodeURIComponent(new URL(url, 'http://localhost').pathname);
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(new URL(url, 'http://localhost').pathname);
+  } catch {
+    return null;
+  }
   if (!pathname.startsWith(site.base)) return null;
   const relative = pathname.slice(site.base.length);
   const file = path.join(site.root, relative === '' || relative.endsWith('/') ? `${relative}index.html` : relative);

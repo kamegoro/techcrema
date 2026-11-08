@@ -22,7 +22,10 @@ export class Reader {
   async open(feed: Feed | null, tab: Tab = 'Today') {
     await step(`Open the ${tab} page`, async () => {
       await this.serveFeed(feed);
-      await this.page.clock.setFixedTime(NOW);
+      // Time stands still unless a test moves it, so timers (like the message that hides itself) never race the test
+      // (installed a second early because pauseAt can only move forward)
+      await this.page.clock.install({ time: NOW.getTime() - 1000 });
+      await this.page.clock.pauseAt(NOW);
       await this.page.goto(tab === 'Today' ? './' : `./#${tab === 'Later' ? 'later' : 'settings'}`);
     });
   }
@@ -210,6 +213,16 @@ export class Reader {
   async expectMessage(text: string) {
     await step(`A message says "${text}"`, async () => {
       await expect(ui.status(this.page).filter({ hasText: text })).toBeVisible();
+    });
+  }
+
+  async waitSeconds(seconds: number) {
+    await step(`Wait ${seconds} seconds`, () => this.page.clock.runFor(seconds * 1000));
+  }
+
+  async expectNoMessage() {
+    await step('No message is shown', async () => {
+      await expect(ui.status(this.page)).toBeHidden();
     });
   }
 

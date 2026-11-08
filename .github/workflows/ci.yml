@@ -13,10 +13,10 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@main
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
@@ -34,15 +34,15 @@ jobs:
           - { project: android, browser: chromium }
           - { project: desktop, browser: chromium }
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@main
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
       - run: npm ci --ignore-scripts
-      - uses: actions/cache@main
+      - uses: actions/cache@v6
         id: browsers
         with:
           path: ~/.cache/ms-playwright
@@ -55,7 +55,7 @@ jobs:
         env:
           # Traces are written to the temp dir; keep them on disk rather than in a small tmpfs /tmp
           TMPDIR: ${{ runner.temp }}
-      - uses: actions/upload-artifact@main
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report-${{ matrix.project }}

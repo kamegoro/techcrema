@@ -40,6 +40,14 @@ test.describe('Mute', () => {
     await reader.expectStories('For you', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
   });
 
+  test('the message offering Undo goes away after a few seconds', async ({ reader }) => {
+    await reader.muteSiteOf('Rust ownership explained', 'alpha.dev');
+    await reader.waitSeconds(5);
+    await reader.expectMessage('Muted "alpha.dev"');
+    await reader.waitSeconds(2);
+    await reader.expectNoMessage();
+  });
+
   test('cancelling mutes nothing', async ({ reader }) => {
     await reader.openMuteSheet('Rust ownership explained');
     await reader.chooseToMute('Site: alpha.dev');

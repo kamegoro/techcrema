@@ -21,7 +21,7 @@ jobs:
       # Fail the run when any source fails
       TECHCREMA_STRICT: '1'
     steps:
-      - uses: actions/checkout@main
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./

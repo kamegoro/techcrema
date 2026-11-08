@@ -24,15 +24,17 @@ jobs:
       - run: npm run check
 
   e2e:
-    name: e2e (${{ matrix.project }})
+    name: e2e (${{ matrix.project }} ${{ matrix.shard }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        # WebKit on Linux is several times slower per test, so the iPhone project runs in two shards
         include:
-          - { project: iphone, browser: webkit }
-          - { project: android, browser: chromium }
-          - { project: desktop, browser: chromium }
+          - { project: iphone, browser: webkit, shard: 1/2 }
+          - { project: iphone, browser: webkit, shard: 2/2 }
+          - { project: android, browser: chromium, shard: 1/1 }
+          - { project: desktop, browser: chromium, shard: 1/1 }
     steps:
       - uses: actions/checkout@v7
         with:
@@ -51,13 +53,13 @@ jobs:
         if: steps.browsers.outputs.cache-hit != 'true'
       - run: npx playwright install-deps ${{ matrix.browser }}
         if: steps.browsers.outputs.cache-hit == 'true'
-      - run: npm run e2e -- --project=${{ matrix.project }}
+      - run: npm run e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}
         env:
           # Traces are written to the temp dir; keep them on disk rather than in a small tmpfs /tmp
           TMPDIR: ${{ runner.temp }}
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-report-${{ matrix.project }}
+          name: playwright-report-${{ matrix.project }}-${{ strategy.job-index }}
           path: playwright-report
           retention-days: 7

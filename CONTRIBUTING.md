@@ -95,6 +95,10 @@ A source must have a **popularity signal** (points, likes, stars…) and an **of
 2. Add the code to `LANGUAGES` and defaults to `LANGUAGE_DEFAULTS` in `src/config.ts`, including the sources that make sense for that audience.
 3. Add the language to the `language` row in [docs/configuration.md](docs/configuration.md).
 
+## Dependency updates
+
+Dependabot opens weekly pull requests for npm packages and GitHub Actions (grouped, and only for releases at least three days old), plus security fixes. [A workflow](.github/workflows/dependabot-auto-merge.yml) merges them once every CI job has passed on the exact commit, so the test suite is what guards these updates.
+
 ## Pull requests
 
 - Open an issue first for anything bigger than a small fix, so we can agree on the approach.

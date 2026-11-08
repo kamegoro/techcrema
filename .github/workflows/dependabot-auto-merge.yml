@@ -1,0 +1,36 @@
+# Merges Dependabot pull requests once CI has passed on them.
+# Runs after the CI workflow finishes rather than as part of the pull request, so it can wait for every job.
+name: Dependabot auto-merge
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge the pull request CI just passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        # Only a PR opened by Dependabot whose latest commit is the one CI tested
+        run: |
+          pr=$(gh pr list --repo "$REPO" --head "$HEAD_BRANCH" --state open --json number,author,headRefOid \
+            --jq ".[] | select(.author.login == \"app/dependabot\" and .headRefOid == \"$HEAD_SHA\") | .number")
+          if [ -z "$pr" ]; then
+            echo "No open Dependabot pull request at $HEAD_SHA"
+            exit 0
+          fi
+          gh pr merge "$pr" --repo "$REPO" --squash --delete-branch

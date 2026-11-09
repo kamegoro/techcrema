@@ -100,6 +100,7 @@ layout:
 | [GitHub](https://github.com) (repos created in the last 7 days) | `github` | stars | `en`, `ja` |
 | [Hatena Bookmark](https://b.hatena.ne.jp/hotentry/it) | `hatena` | bookmarks | `ja` |
 | [Zenn](https://zenn.dev) | `zenn` | likes | `ja` |
+| Slides on [Speaker Deck](https://speakerdeck.com) and [Docswell](https://www.docswell.com), through Hatena Bookmark | `slides` | bookmarks | `ja` |
 | [Qiita](https://qiita.com) | `qiita` | likes | `ja` |
 | Any RSS/Atom feed or GitHub releases | via `official` | none (always shown when new) | |
 

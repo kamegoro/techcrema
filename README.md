@@ -75,7 +75,7 @@ official: |
 mute-keywords: crypto, nft
 ```
 
-**A Japanese page** — Hatena Bookmark, Zenn and Qiita join the sources:
+**A Japanese page** — Hatena Bookmark, Zenn, Qiita and slides from Speaker Deck and Docswell join the sources:
 
 ```yaml
 language: ja

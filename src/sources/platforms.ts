@@ -1,6 +1,6 @@
 /** Sources with a popularity signal. Official APIs, RSS and public JSON only; no HTML scraping. */
 
-import { parseFeed } from '#src/feed-parser.ts';
+import { type FeedEntry, parseFeed } from '#src/feed-parser.ts';
 import { fetchJson, fetchText, githubHeaders } from '#src/http.ts';
 import type { RawItem } from '#src/types.ts';
 
@@ -49,9 +49,8 @@ function hatenaEntryUrl(link: string): string {
   return `https://b.hatena.ne.jp/entry/${link.replace(/^http:\/\//, '')}`;
 }
 
-export async function fetchHatena(): Promise<RawItem[]> {
-  const xml = await fetchText('https://b.hatena.ne.jp/hotentry/it.rss');
-  return parseFeed(xml).map((e) => ({
+function hatenaItem(e: FeedEntry): RawItem {
+  return {
     source: 'hatena',
     title: e.title,
     url: e.link,
@@ -60,7 +59,24 @@ export async function fetchHatena(): Promise<RawItem[]> {
     scoreLabel: 'users',
     tags: e.categories.filter((c) => c !== HATENA_TECH_CATEGORY),
     publishedAt: e.publishedAt,
-  }));
+  };
+}
+
+export async function fetchHatena(): Promise<RawItem[]> {
+  return parseFeed(await fetchText('https://b.hatena.ne.jp/hotentry/it.rss')).map(hatenaItem);
+}
+
+/** Slide sites whose decks are picked up through Hatena's per-site feed (Speaker Deck's own feeds are closed to crawlers) */
+const SLIDE_SITES = ['speakerdeck.com', 'www.docswell.com'];
+
+/** Newest decks on each slide site that Hatena users bookmarked, with their bookmark counts */
+export async function fetchSlides(): Promise<RawItem[]> {
+  const items: RawItem[] = [];
+  for (const site of SLIDE_SITES) {
+    const xml = await fetchText(`https://b.hatena.ne.jp/site/${site}/?mode=rss`);
+    items.push(...parseFeed(xml).map((e) => ({ ...hatenaItem(e), source: 'slides' as const })));
+  }
+  return items;
 }
 
 interface ZennArticle {

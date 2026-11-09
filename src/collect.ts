@@ -9,6 +9,7 @@ import {
   fetchHuggingFace,
   fetchLobsters,
   fetchQiita,
+  fetchSlides,
   fetchZenn,
   TAG_FETCHERS,
   type TagPlatform,
@@ -33,6 +34,7 @@ const PLATFORM_FETCHERS: Record<PlatformId, (now: Date) => Promise<RawItem[]>> =
   hatena: fetchHatena,
   zenn: fetchZenn,
   qiita: fetchQiita,
+  slides: fetchSlides,
 };
 
 interface Job {

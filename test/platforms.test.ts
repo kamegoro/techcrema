@@ -8,6 +8,7 @@ import {
   fetchHuggingFace,
   fetchLobsters,
   fetchQiita,
+  fetchSlides,
   fetchZenn,
   TAG_FETCHERS,
 } from '#src/sources/platforms.ts';
@@ -67,6 +68,33 @@ describe('fetchHatena', () => {
         <item><title>B</title><link>http://b.dev/y</link></item>
       </rdf:RDF>`);
     expect((await fetchHatena())[0]?.discussionUrl).toBe('https://b.hatena.ne.jp/entry/b.dev/y');
+  });
+});
+
+describe('fetchSlides', () => {
+  it('reads the decks Hatena users bookmarked on each slide site', async () => {
+    const deck = (link: string, count: number) => `<?xml version="1.0"?>
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/"
+        xmlns:hatena="http://www.hatena.ne.jp/info/xmlns#">
+        <item><title>Deck</title><link>${link}</link><hatena:bookmarkcount>${count}</hatena:bookmarkcount></item>
+      </rdf:RDF>`;
+    vi.mocked(fetchText)
+      .mockResolvedValueOnce(deck('https://speakerdeck.com/kame/deck', 120))
+      .mockResolvedValueOnce(deck('https://www.docswell.com/s/kame/ABC-deck', 40));
+    expect(await fetchSlides()).toEqual([
+      expect.objectContaining({
+        source: 'slides',
+        url: 'https://speakerdeck.com/kame/deck',
+        score: 120,
+        scoreLabel: 'users',
+        discussionUrl: 'https://b.hatena.ne.jp/entry/s/speakerdeck.com/kame/deck',
+      }),
+      expect.objectContaining({ source: 'slides', url: 'https://www.docswell.com/s/kame/ABC-deck', score: 40 }),
+    ]);
+    expect(vi.mocked(fetchText).mock.calls.map(([url]) => url)).toEqual([
+      'https://b.hatena.ne.jp/site/speakerdeck.com/?mode=rss',
+      'https://b.hatena.ne.jp/site/www.docswell.com/?mode=rss',
+    ]);
   });
 });
 

@@ -157,11 +157,21 @@ function ageDays(story: Story, now: Date): number {
 }
 
 /** Sites where one person posts many articles: the first path segment is the author */
-const AUTHOR_SITES = new Set(['dev.to', 'zenn.dev', 'qiita.com', 'medium.com', 'note.com']);
+const AUTHOR_SITES = new Set([
+  'dev.to',
+  'zenn.dev',
+  'qiita.com',
+  'medium.com',
+  'note.com',
+  'speakerdeck.com',
+  'docswell.com',
+]);
 
 /** "dev.to/someone" for a post on dev.to; undefined where a URL says nothing about the author */
 export function authorOf(story: Pick<Story, 'key'>): string | undefined {
-  const [host, author] = story.key.split('/');
+  // Docswell puts decks under /s/<author>/
+  const [host, ...path] = story.key.replace(/^docswell\.com\/s\//, 'docswell.com/').split('/');
+  const author = path[0];
   return host && author && AUTHOR_SITES.has(host) ? `${host}/${author}` : undefined;
 }
 

@@ -18,6 +18,7 @@ export const PLATFORMS = [
   'hatena',
   'zenn',
   'qiita',
+  'slides',
 ] as const;
 export type PlatformId = (typeof PLATFORMS)[number];
 
@@ -63,7 +64,7 @@ const LANGUAGE_DEFAULTS: Record<Language, Config> = {
     presets: [],
     title: 'TechCrema',
     timezone: 'Asia/Tokyo',
-    sources: ['hatena', 'zenn', 'qiita', 'hackernews', 'lobsters', 'devto', 'huggingface', 'github'],
+    sources: ['hatena', 'zenn', 'qiita', 'slides', 'hackernews', 'lobsters', 'devto', 'huggingface', 'github'],
     topics: {},
     mute: { keywords: [], domains: [] },
     official: { feeds: [], releases: [] },

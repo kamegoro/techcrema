@@ -28,6 +28,7 @@
   --src-github: #6e7781;
   --src-official: #3d5afe;
   --src-release: #1a7f37;
+  --src-slides: #00877b;
 
   --radius: 14px;
   --radius-sm: 8px;
@@ -63,6 +64,7 @@
     --src-official: #8c9bff;
     --src-release: #3fb950;
     --src-devto: #8c96ff;
+    --src-slides: #2bbfb0;
   }
 }
 
@@ -90,6 +92,7 @@
   --src-official: #8c9bff;
   --src-release: #3fb950;
   --src-devto: #8c96ff;
+  --src-slides: #2bbfb0;
 }
 
 *,
@@ -502,6 +505,9 @@ a.source:hover {
 }
 .source[data-source="github_new_repos"] {
   --dot: var(--src-github);
+}
+.source[data-source="slides"] {
+  --dot: var(--src-slides);
 }
 .source[data-source="official"] {
   --dot: var(--src-official);

@@ -5,6 +5,7 @@ import { translationOf } from './translate.js';
 const SOURCE_LABELS = {
   hackernews: 'HN',
   hatena: 'Hatena',
+  slides: 'Slides',
   zenn: 'Zenn',
   qiita: 'Qiita',
   devto: 'dev.to',
@@ -14,6 +15,8 @@ const SOURCE_LABELS = {
   official: 'Official',
   github_release: 'Release',
 };
+/** Sources whose name differs by language (the rest are proper names) */
+const LOCALIZED_SOURCES = new Set(['hatena', 'slides']);
 const STATE_KEY = 'techcrema-state-v1';
 // Caps (oldest dropped first) so localStorage doesn't fill up
 const MAX_READ = 3000;
@@ -374,7 +377,7 @@ function jumpTo(event, id) {
 
 /** Where the story is popular, e.g. "HN 668 pt", linking to the discussion when there is one */
 function source(a, story) {
-  const label = a.source === 'hatena' ? t('source.hatena') : (SOURCE_LABELS[a.source] ?? a.source);
+  const label = LOCALIZED_SOURCES.has(a.source) ? t(`source.${a.source}`) : (SOURCE_LABELS[a.source] ?? a.source);
   const children = [h('span', { class: 'source-dot' }), label];
   if (a.score !== null && a.score !== undefined) {
     // The unit (pt, likes…) is only in the accessible name; on screen the number next to the site is enough

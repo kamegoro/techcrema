@@ -20,6 +20,7 @@ export type ReleaseKind = 'major' | 'minor' | 'patch' | 'other';
 export type SourceId =
   | 'hackernews'
   | 'hatena'
+  | 'slides'
   | 'zenn'
   | 'qiita'
   | 'devto'

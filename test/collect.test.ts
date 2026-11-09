@@ -20,6 +20,7 @@ vi.mock('#src/sources/platforms.ts', () => {
     fetchHatena: none,
     fetchZenn: none,
     fetchQiita: none,
+    fetchSlides: none,
     TAG_FETCHERS: { zenn: none, qiita: none, devto: none, lobsters: vi.fn() },
   };
 });

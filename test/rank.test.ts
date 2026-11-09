@@ -167,6 +167,11 @@ describe('authorOf', () => {
     expect(authorOf({ key: 'github.blog/changelog/x' })).toBeUndefined();
     expect(authorOf({ key: 'dev.to' })).toBeUndefined();
   });
+
+  it('reads the author of a slide deck', () => {
+    expect(authorOf({ key: 'speakerdeck.com/kame/deck' })).toBe('speakerdeck.com/kame');
+    expect(authorOf({ key: 'docswell.com/s/kame/ABC-deck' })).toBe('docswell.com/kame');
+  });
 });
 
 describe('groupOfficial', () => {

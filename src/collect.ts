@@ -126,7 +126,9 @@ export async function collect(
 
   // Spares are usually not shown, so only the visible stories count as seen
   for (const section of sections) {
-    for (const s of section.stories.slice(0, section.limit)) seen[s.key] = { date: today, pop: s.pop };
+    // The first day shown is kept: a story leaves the page the day after that
+    for (const s of section.stories.slice(0, section.limit))
+      seen[s.key] = { date: seen[s.key]?.date ?? today, pop: s.pop };
   }
   await saveSeen(seen);
 

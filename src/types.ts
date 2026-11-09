@@ -11,6 +11,8 @@ export interface RawItem {
   publishedAt: string | null;
   publisher?: string;
   releaseKind?: 'major' | 'minor' | 'patch' | 'other';
+  /** Topic tags this item was found under, when it came from a tag lookup */
+  lookups?: string[];
 }
 
 export type SourceId =
@@ -42,6 +44,10 @@ export interface Story {
   topics: string[];
   /** Matched keywords (offered as mute suggestions) */
   matchedKeywords: string[];
+  /** A keyword of its first topic is in the title itself, not only in the tags */
+  titleMatch?: boolean;
+  /** Topic tags this story was found under by tag lookups */
+  lookups?: string[];
   publisher?: string;
   releaseKind?: RawItem['releaseKind'];
   /** In the official section: how many newer items from the same publisher were folded in ("+N more") */

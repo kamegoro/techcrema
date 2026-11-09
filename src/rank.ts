@@ -2,6 +2,7 @@
  * Ranking. Popularity is a percentile within each platform, so 300 HN points and 300 Hatena bookmarks
  * land on the same scale. Popularity and interest are never blended into one score; sections combine them.
  */
+import { shiftDate } from './store.ts';
 import type { InterestConfig, LayoutConfig, Section, SourceId, Story } from './types.ts';
 
 /**
@@ -56,20 +57,29 @@ export interface InterestResult {
   interest: number;
   topics: string[];
   matchedKeywords: string[];
+  titleMatch: boolean;
 }
 
 /** "Node.js", "nodejs" and "NodeJS" are the same tag */
 const tagKey = (tag: string) => tag.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 
-export function scoreInterest(story: Pick<Story, 'title' | 'tags'>, config: InterestConfig): InterestResult {
+/**
+ * A story belongs to a topic when a keyword is in its title or tags, or a tag lookup found it.
+ * Tags that came with a front-page story don't count on their own: sites and readers tag loosely
+ * (dev.to and Hatena put "ai" on nearly anything that mentions it).
+ */
+export function scoreInterest(
+  story: Pick<Story, 'title' | 'tags' | 'lookups'>,
+  config: InterestConfig,
+): InterestResult {
   const text = storyText(story);
-  const storyTags = new Set(story.tags.map(tagKey));
-  const matched: { name: string; weight: number }[] = [];
+  const lookups = new Set((story.lookups ?? []).map(tagKey));
+  const matched: { name: string; weight: number; inTitle: boolean }[] = [];
   const matchedKeywords: string[] = [];
   for (const [name, topic] of Object.entries(config.topics)) {
     const hits = topic.keywords.filter((k) => keywordMatcher(k)(text));
-    if (hits.length === 0 && !topic.tags.some((t) => storyTags.has(tagKey(t)))) continue;
-    matched.push({ name, weight: topic.weight });
+    if (hits.length === 0 && !topic.tags.some((t) => lookups.has(tagKey(t)))) continue;
+    matched.push({ name, weight: topic.weight, inTitle: hits.some((k) => keywordMatcher(k)(story.title)) });
     matchedKeywords.push(...hits);
   }
   // Stable sort: equal weights keep the configured order
@@ -78,6 +88,7 @@ export function scoreInterest(story: Pick<Story, 'title' | 'tags'>, config: Inte
     interest: matched[0]?.weight ?? 0,
     topics: matched.map((m) => m.name),
     matchedKeywords: [...new Set(matchedKeywords)],
+    titleMatch: matched[0]?.inTitle ?? false,
   };
 }
 
@@ -96,6 +107,10 @@ export function isMuted(
 const OFFICIAL_SOURCES: ReadonlySet<SourceId> = new Set(['official', 'github_release']);
 const RESURFACE_DELTA = 0.1;
 const PLATFORM_FRESH_DAYS = 4;
+/** How much less popular a story counts within a topic when its title doesn't name the topic */
+const UNNAMED_TOPIC_PENALTY = 0.3;
+/** A topic with fewer stories than it shows also takes older ones, up to this age */
+const QUIET_TOPIC_DAYS = 14;
 /** Outside your topics, only the top 10% of each platform can make it onto the page */
 const TRENDING_MIN_POP = 0.9;
 
@@ -139,21 +154,33 @@ function ageDays(story: Story, now: Date): number {
   return (now.getTime() - Date.parse(story.publishedAt)) / 86_400_000;
 }
 
+/** Sites where one person posts many articles: the first path segment is the author */
+const AUTHOR_SITES = new Set(['dev.to', 'zenn.dev', 'qiita.com', 'medium.com', 'note.com']);
+
+/** "dev.to/someone" for a post on dev.to; undefined where a URL says nothing about the author */
+export function authorOf(story: Pick<Story, 'key'>): string | undefined {
+  const [host, author] = story.key.split('/');
+  return host && author && AUTHOR_SITES.has(host) ? `${host}/${author}` : undefined;
+}
+
 /**
- * Takes stories from the top while keeping any one platform under its cap.
- * With `soft`, slots the cap left empty go back to the capped platforms, so a topic that only
- * one platform writes about still fills up.
+ * Takes stories from the top while keeping any one platform under its cap and any one author to a single story.
+ * With `soft`, slots the caps left empty go back to the capped stories, so a topic that only
+ * one platform or one person writes about still fills up.
  */
 export function pickWithCaps(ranked: readonly Story[], limit: number, maxRatio: number, soft = false): Story[] {
   const maxPerSource = Math.max(1, Math.ceil(limit * maxRatio));
   const sourceCounts = new Map<SourceId, number>();
+  const authors = new Set<string>();
   const picked = new Set<Story>();
   for (const s of ranked) {
     if (picked.size >= limit) break;
     const src = primarySource(s);
     const n = sourceCounts.get(src) ?? 0;
-    if (n >= maxPerSource) continue;
+    const author = authorOf(s);
+    if (n >= maxPerSource || (author && authors.has(author))) continue;
     sourceCounts.set(src, n + 1);
+    if (author) authors.add(author);
     picked.add(s);
   }
   if (soft) {
@@ -199,11 +226,13 @@ export function buildSections(input: BuildInput): Section[] {
   const { layout, today, now, seen, language } = input;
   const spare = input.spare ?? 0;
 
-  // Hide stories shown on earlier days, except ones whose popularity jumped: those come back once, marked resurfaced.
+  // A story stays for the day it was first shown and the next (so a day without opening the page loses nothing),
+  // then hides, unless its popularity jumped: then it comes back once, marked resurfaced.
+  const yesterday = shiftDate(today, -1);
   const visible: Story[] = [];
   for (const s of input.stories) {
     const prev = seen[s.key];
-    if (!prev || prev.date === today) {
+    if (!prev || prev.date >= yesterday) {
       visible.push(s);
     } else if (!isOfficial(s) && s.pop - prev.pop >= RESURFACE_DELTA) {
       visible.push({ ...s, resurfaced: true });
@@ -212,21 +241,28 @@ export function buildSections(input: BuildInput): Section[] {
 
   const official = groupOfficial(visible.filter((s) => isOfficial(s) && ageDays(s, now) <= layout.official_days));
 
-  const platform = visible.filter((s) => !isOfficial(s) && !isRepoOnly(s) && ageDays(s, now) <= PLATFORM_FRESH_DAYS);
+  const fromPlatforms = visible.filter((s) => !isOfficial(s) && !isRepoOnly(s));
+  const platform = fromPlatforms.filter((s) => ageDays(s, now) <= PLATFORM_FRESH_DAYS);
   const byPop = (a: Story, b: Story) => b.pop - a.pop || b.interest - a.interest || a.key.localeCompare(b.key);
+  // Within a topic, a story that doesn't name it in the title (only a tag put it there) ranks as if less popular
+  const relevance = (s: Story) => s.pop - (s.titleMatch ? 0 : UNNAMED_TOPIC_PENALTY);
+  const byRelevance = (a: Story, b: Story) => relevance(b) - relevance(a) || byPop(a, b);
 
-  const topics: Section[] = input.topics.map((name, i) => ({
-    id: `topic-${i}`,
-    title: name,
-    stories: pickWithSpare(
-      platform.filter((s) => s.topics[0] === name).sort(byPop),
-      layout.per_topic,
-      spare,
-      layout.max_source_ratio,
-      true,
-    ),
-    limit: layout.per_topic,
-  }));
+  const topics: Section[] = input.topics.map((name, i) => {
+    const fresh = platform.filter((s) => s.topics[0] === name).sort(byRelevance);
+    const older =
+      fresh.length < layout.per_topic
+        ? fromPlatforms
+            .filter((s) => s.topics[0] === name && !fresh.includes(s) && ageDays(s, now) <= QUIET_TOPIC_DAYS)
+            .sort(byRelevance)
+        : [];
+    return {
+      id: `topic-${i}`,
+      title: name,
+      stories: pickWithSpare([...fresh, ...older], layout.per_topic, spare, layout.max_source_ratio, true),
+      limit: layout.per_topic,
+    };
+  });
 
   const trending = pickWithSpare(
     platform.filter((s) => s.interest === 0 && s.pop >= TRENDING_MIN_POP).sort(byPop),

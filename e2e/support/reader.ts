@@ -125,6 +125,25 @@ export class Reader {
     });
   }
 
+  /** Opens the story's discussion page (e.g. the HN comments) instead of the article */
+  async openDiscussion(title: string) {
+    await step(`Open the discussion of "${title}"`, async () => {
+      const popup = this.page.waitForEvent('popup');
+      await ui.link(this.story(title), /^Discussion on/).click();
+      await (await popup).close();
+    });
+  }
+
+  /** Switches to another app and back, as when returning from an article */
+  async comeBack() {
+    await step('Leave the page and come back to it', () =>
+      this.page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+      }),
+    );
+  }
+
   async expectStoryRead(title: string) {
     await step(`"${title}" is marked as read`, async () => {
       await expect(this.story(title)).toContainText('Read');
@@ -220,6 +239,10 @@ export class Reader {
 
   async undoFromMessage() {
     await step('Undo from the message', () => ui.button(ui.status(this.page), 'Undo').click());
+  }
+
+  async showFromMessage() {
+    await step('Choose Show in the message', () => ui.button(ui.status(this.page), 'Show').click());
   }
 
   async expectText(text: string) {

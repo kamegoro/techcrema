@@ -54,6 +54,9 @@ const MESSAGES = {
     'mute.none': 'Nothing selected to mute',
     'mute.done': 'Muted "{label}"',
     'mute.undo': 'Undo',
+    'later.done': 'Removed from Read later',
+    'update.ready': 'A newer edition is ready',
+    'update.show': 'Show',
     'mute.removed': 'Unmuted',
     'mute.help':
       'Read later, read marks and mutes are saved in this browser only. To change your topics, edit the workflow or techcrema.yml in your repository.',
@@ -113,6 +116,9 @@ const MESSAGES = {
     'mute.none': 'ミュートする対象が選ばれていません',
     'mute.done': '「{label}」をミュートしました',
     'mute.undo': '元に戻す',
+    'later.done': '「あとで」から外しました',
+    'update.ready': '新しい版があります',
+    'update.show': '表示',
     'mute.removed': 'ミュートを解除しました',
     'mute.help':
       'あとで読む・既読・ミュートは、このブラウザにだけ保存されます。関心のあるトピックは、リポジトリのワークフローか techcrema.yml で変更できます。',

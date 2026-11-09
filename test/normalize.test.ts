@@ -102,6 +102,25 @@ describe('mergeIntoStories', () => {
   });
 });
 
+describe('tag lookups', () => {
+  it('keeps every tag a story was looked up under, from any listing of it', () => {
+    const base: RawItem = {
+      source: 'zenn',
+      title: 'T',
+      url: 'https://zenn.dev/a/articles/x',
+      score: 5,
+      tags: [],
+      publishedAt: null,
+    };
+    const [story] = mergeIntoStories(
+      [base, { ...base, lookups: ['node'] }, { ...base, lookups: ['node', 'deno'] }],
+      () => 0.5,
+    );
+    expect(story?.lookups).toEqual(['node', 'deno']);
+    expect(mergeIntoStories([{ ...base, lookups: ['e2e'] }], () => 0.5)[0]?.lookups).toEqual(['e2e']);
+  });
+});
+
 describe('edge cases', () => {
   it('keeps repeated query parameters in their original order', () => {
     expect(normalizeUrl('https://a.dev/s?tag=b&tag=a')).toBe('a.dev/s?tag=b&tag=a');

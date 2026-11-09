@@ -29,6 +29,10 @@ const data = { feed: null, state: loadState() };
 let loadError = null;
 /** Sections opened with "Show more" (until the page is reloaded) */
 const expanded = new Set();
+/** Where each story is drawn, so one story can be redrawn without moving anything else */
+const views = new Map();
+/** A newer feed.json, held back until the reader asks for it so nothing changes under their thumb */
+let pendingFeed = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -127,11 +131,16 @@ function isMuted(story, mute) {
   return mute.keywords.some((k) => keywordMatcher(k)(text));
 }
 
-/** Drops muted stories, then keeps the first `limit` of each section unless it was expanded; `more` counts the rest */
+/**
+ * Drops muted stories and moves read ones after the unread (so a second visit in a day shows what is left),
+ * then keeps the first `limit` of each section unless it was expanded; `more` counts the rest
+ */
 function visibleSections(feed) {
   const mute = data.state.mute;
+  const read = new Set(data.state.read);
   return feed.sections.map((s) => {
-    const stories = s.stories.filter((st) => !isMuted(st, mute));
+    const kept = s.stories.filter((st) => !isMuted(st, mute));
+    const stories = [...kept.filter((st) => !read.has(st.key)), ...kept.filter((st) => read.has(st.key))];
     const shown = expanded.has(s.id) ? stories : stories.slice(0, s.limit ?? stories.length);
     return { ...s, stories: shown, more: stories.length - shown.length };
   });
@@ -139,33 +148,89 @@ function visibleSections(feed) {
 
 const sectionTitle = (section) => section.title ?? t(`section.${section.id}`);
 
+function showFeed(feed) {
+  data.feed = feed;
+  pendingFeed = null;
+  if (setLanguage(feed.language)) translateDocument();
+  if (feed.title) {
+    document.title = feed.title;
+    document.querySelector('.brand-title').textContent = feed.title;
+  }
+  render();
+}
+
+/** First load shows the feed; later loads (coming back to the app) only offer a newer one */
 async function load() {
+  let feed;
   try {
     const res = await fetch('./feed.json', { cache: 'no-cache' });
     if (!res.ok) throw new Error(res.status === 404 ? t('load.missing') : `HTTP ${res.status}`);
-    data.feed = await res.json();
-    loadError = null;
-    if (setLanguage(data.feed.language)) translateDocument();
-    if (data.feed.title) {
-      document.title = data.feed.title;
-      document.querySelector('.brand-title').textContent = data.feed.title;
-    }
+    feed = await res.json();
   } catch (err) {
-    loadError = err;
+    // A failed refresh keeps the stories already on the page
+    if (!data.feed) {
+      loadError = err;
+      render();
+    }
+    return;
   }
-  render();
+  loadError = null;
+  if (!data.feed) {
+    showFeed(feed);
+    return;
+  }
+  if (feed.generatedAt === data.feed.generatedAt) return;
+  pendingFeed = feed;
+  toast(t('update.ready'), {
+    label: t('update.show'),
+    run: () => {
+      showFeed(pendingFeed);
+      window.scrollTo(0, 0);
+    },
+  });
+}
+
+/** Draws one story again in place (read mark, bookmark), leaving the rest of the page where it is */
+function redraw(key) {
+  const entries = views.get(key) ?? [];
+  views.set(key, []);
+  for (const { li, story, idPrefix, options } of entries) {
+    const focused = li.contains(document.activeElement) ? document.activeElement.classList[0] : null;
+    const next = storyItem(story, idPrefix, options);
+    li.replaceWith(next);
+    if (focused) next.querySelector(`.${focused}`)?.focus();
+  }
 }
 
 function act(action, story) {
   const key = story.key;
   const s = data.state;
-  const toggle = (list, on) => (on ? [...list.filter((k) => k !== key), key] : list.filter((k) => k !== key));
-  if (action === 'read') s.read = toggle(s.read, true);
+  if (action === 'read') s.read = [...s.read.filter((k) => k !== key), key];
   // Save the whole story so it is still there after the feed changes tomorrow
   if (action === 'later') s.later = [story, ...s.later.filter((x) => x.key !== key)];
   if (action === 'unlater') s.later = s.later.filter((x) => x.key !== key);
   saveState();
+  renderHeader();
+  if (action === 'unlater' && currentTab() === 'later') render();
+  else redraw(key);
+}
+
+/** Opening a story from Read later is the point of saving it, so it leaves the list (with Undo) */
+function readFromLater(story) {
+  const index = data.state.later.findIndex((x) => x.key === story.key);
+  act('read', story);
+  data.state.later = data.state.later.filter((x) => x.key !== story.key);
+  saveState();
+  // A link taken out of the page still opens, so the list can be redrawn right away
   render();
+  toast(t('later.done'), {
+    label: t('mute.undo'),
+    run: () => {
+      data.state.later.splice(index, 0, story);
+      saveState();
+      render();
+    },
+  });
 }
 
 function mute(rules, { undo = true } = {}) {
@@ -287,7 +352,7 @@ function jumpTo(event, id) {
 }
 
 /** Where the story is popular, e.g. "HN 668 pt", linking to the discussion when there is one */
-function source(a) {
+function source(a, story) {
   const label = a.source === 'hatena' ? t('source.hatena') : (SOURCE_LABELS[a.source] ?? a.source);
   const children = [h('span', { class: 'source-dot' }), label];
   if (a.score !== null && a.score !== undefined) {
@@ -308,6 +373,8 @@ function source(a) {
       target: '_blank',
       rel: 'noopener noreferrer',
       dataset: { source: a.source },
+      // Reading the discussion counts as reading the story
+      onclick: () => markRead(story),
       'aria-label': t('discussion', { source: label, score: `${a.score ?? ''} ${a.scoreLabel ?? ''}`.trim() }),
     },
     ...children,
@@ -316,7 +383,11 @@ function source(a) {
 }
 
 /** One story as an <article> named by its title. idPrefix keeps the heading ids unique on the page. */
-function storyItem(story, idPrefix) {
+function markRead(story) {
+  if (!data.state.read.includes(story.key)) act('read', story);
+}
+
+function storyItem(story, idPrefix, options = {}) {
   const s = data.state;
   const later = s.later.some((x) => x.key === story.key);
   const read = s.read.includes(story.key);
@@ -335,7 +406,7 @@ function storyItem(story, idPrefix) {
             href,
             target: '_blank',
             rel: 'noopener noreferrer',
-            onclick: () => !read && act('read', story),
+            onclick: () => (options.fromLater ? readFromLater(story) : markRead(story)),
           },
           story.title,
         )
@@ -354,7 +425,7 @@ function storyItem(story, idPrefix) {
           h('span', { class: 'source-dot' }),
           story.publisher ?? t('source.official'),
         )
-      : story.appearances.map(source),
+      : story.appearances.map((a) => source(a, story)),
     ['major', 'minor', 'patch'].includes(story.releaseKind)
       ? h(
           'span',
@@ -396,7 +467,7 @@ function storyItem(story, idPrefix) {
     ),
   );
 
-  return h(
+  const li = h(
     'li',
     {},
     h(
@@ -406,6 +477,8 @@ function storyItem(story, idPrefix) {
       h('div', { class: 'story-footer' }, meta, actions),
     ),
   );
+  views.set(story.key, [...(views.get(story.key) ?? []), { li, story, idPrefix, options }]);
+  return li;
 }
 
 function emptyState(title, text) {
@@ -491,7 +564,7 @@ function renderLater(main) {
       h(
         'ul',
         { class: 'stories', role: 'list' },
-        list.map((story, i) => storyItem(story, `later-${i}`)),
+        list.map((story, i) => storyItem(story, `later-${i}`, { fromLater: true })),
       ),
     ),
   );
@@ -552,6 +625,7 @@ function render() {
   renderHeader();
   const main = $('main');
   main.replaceChildren();
+  views.clear();
   const tab = currentTab();
   if (tab === 'later') renderLater(main);
   else if (tab === 'settings') renderSettings(main);

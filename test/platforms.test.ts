@@ -139,15 +139,46 @@ describe('fetchGithubNewRepos', () => {
     json.mockResolvedValue({
       items: [
         { ...base, full_name: 'a/b', description: 'A tool', topics: ['cli'] },
-        { ...base, full_name: 'a/c', description: null },
+        { ...base, full_name: 'a/c', description: 'Another tool' },
       ],
     });
-    const [described, bare] = await fetchGithubNewRepos(now);
+    const [described, untagged] = await fetchGithubNewRepos(now);
     expect(described).toMatchObject({ title: 'a/b — A tool', tags: ['cli'] });
-    expect(bare).toMatchObject({ title: 'a/c', tags: [] });
+    expect(untagged).toMatchObject({ title: 'a/c — Another tool', tags: [] });
     expect(json).toHaveBeenCalledWith(expect.stringContaining(encodeURIComponent('created:>2026-11-01')), {
       Accept: 'application/vnd.github+json',
     });
+  });
+});
+
+describe('fetchGithubNewRepos spam filter', () => {
+  it('drops repos with no description, a description that repeats the name, or a known lure', async () => {
+    const base = { html_url: 'https://github.com/x/y', stargazers_count: 400, created_at: 'c' };
+    json.mockResolvedValue({
+      items: [
+        { ...base, full_name: 'x/none', description: null },
+        { ...base, full_name: 'x/blank', description: '  ' },
+        { ...base, full_name: 'x/Free_Pro_Auto', description: 'Free_Pro_Auto' },
+        { ...base, full_name: 'x/capcut', description: 'Capcut 2026 pre-configured environment for video editing' },
+        { ...base, full_name: 'x/opt', description: 'Optimizer automated deployment pipeline for desktops' },
+        { ...base, full_name: 'x/real', description: 'A real project' },
+      ],
+    });
+    expect((await fetchGithubNewRepos(now)).map((r) => r.title)).toEqual(['x/real — A real project']);
+  });
+});
+
+describe('dev.to community threads', () => {
+  it("leaves out dev.to's own challenges, chat threads and site news", async () => {
+    const post = (title: string, tags: string[]) => ({
+      title,
+      url: `https://dev.to/${title}`,
+      public_reactions_count: 50,
+      published_timestamp: 'p',
+      tag_list: tags,
+    });
+    json.mockResolvedValue([post('pets', ['watercooler']), post('news', ['meta']), post('rust', ['rust'])]);
+    expect((await fetchDevto()).map((a) => a.title)).toEqual(['rust']);
   });
 });
 
@@ -163,7 +194,7 @@ describe('TAG_FETCHERS', () => {
   it('Zenn: asks for the topic by its slug, drops posts nobody liked and adds the tag', async () => {
     json.mockResolvedValue({ articles: [zenn(12), zenn(0)] });
     expect(await TAG_FETCHERS.zenn('Node.js', now)).toEqual([
-      expect.objectContaining({ score: 12, tags: ['Node.js'] }),
+      expect.objectContaining({ score: 12, tags: [], lookups: ['Node.js'] }),
     ]);
     expect(json).toHaveBeenCalledWith('https://zenn.dev/api/articles?topicname=nodejs&order=latest&count=30');
   });
@@ -179,7 +210,7 @@ describe('TAG_FETCHERS', () => {
       { title: 'R', url: 'https://qiita.com/r', likes_count: 0, created_at: 'c', tags: [] },
     ]);
     expect(await TAG_FETCHERS.qiita('Node.js', now)).toEqual([
-      expect.objectContaining({ title: 'Q', tags: ['Node.js', 'Node.js'] }),
+      expect.objectContaining({ title: 'Q', tags: ['Node.js'], lookups: ['Node.js'] }),
     ]);
     expect(json).toHaveBeenCalledWith(
       expect.stringContaining(encodeURIComponent('tag:Node.js created:>2026-11-04')),

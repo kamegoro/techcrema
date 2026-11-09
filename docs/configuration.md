@@ -47,7 +47,7 @@ Missing one? Presets live in [`src/presets.ts`](../src/presets.ts); pull request
 ## Topics
 
 Each topic gets its own section on the page, in the order you write them, titled with the topic's name.
-A story belongs to a topic when its title or tags contain any of the topic's keywords, or it carries one of the topic's tags.
+A story belongs to a topic when its title or tags contain any of the topic's keywords, or a lookup of one of the topic's tags (below) found it.
 
 ```yaml
 topics: |

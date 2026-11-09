@@ -28,6 +28,19 @@ test.describe('Read later', () => {
     await reader.expectLaterList(['Rust ownership explained']);
   });
 
+  test('opening a saved story takes it off the list, and that can be undone', async ({ reader }) => {
+    await reader.open(makeFeed());
+    await reader.saveForLater('Rust ownership explained');
+    await reader.saveForLater('Writing a Rust CLI');
+    await reader.goToTab('Later');
+    await reader.openStory('Rust ownership explained');
+    await reader.expectMessage('Removed from Read later');
+    await reader.expectLaterList(['Writing a Rust CLI']);
+    await reader.undoFromMessage();
+    // Back in its old place: the newest save comes first
+    await reader.expectLaterList(['Writing a Rust CLI', 'Rust ownership explained']);
+  });
+
   test('a story can be removed from Read later', async ({ reader }) => {
     await reader.open(makeFeed());
     await reader.saveForLater('Rust ownership explained');

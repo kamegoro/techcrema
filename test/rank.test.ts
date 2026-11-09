@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  authorOf,
   buildSections,
   groupOfficial,
   isMuted,
@@ -106,10 +107,18 @@ describe('scoreInterest', () => {
   it('also looks at tags', () => {
     expect(scoreInterest({ title: 'Plugin tips', tags: ['Lua'] }, config).interest).toBe(1);
   });
-  it('counts a topic tag on the story, however it is spelled', () => {
-    const r = scoreInterest({ title: 'Release notes', tags: ['NodeJS'] }, config);
+  it('counts a story a tag lookup found under the topic, however the tag is spelled', () => {
+    const r = scoreInterest({ title: 'Release notes', tags: [], lookups: ['NodeJS'] }, config);
     expect(r.topics).toEqual(['node']);
     expect(r.matchedKeywords).toEqual([]);
+    expect(r.titleMatch).toBe(false);
+  });
+  it("ignores a front-page story's own tags unless a keyword matches them", () => {
+    expect(scoreInterest({ title: 'Release notes', tags: ['NodeJS'] }, config).topics).toEqual([]);
+  });
+  it('says whether a keyword of the first topic is in the title', () => {
+    expect(scoreInterest({ title: 'Neovim tips', tags: [] }, config).titleMatch).toBe(true);
+    expect(scoreInterest({ title: 'Plugin tips', tags: ['lua'] }, config).titleMatch).toBe(false);
   });
   it('is 0 when nothing matches', () => {
     expect(scoreInterest({ title: 'Rust news', tags: [] }, config).interest).toBe(0);
@@ -147,6 +156,15 @@ describe('pickWithCaps', () => {
     ];
     expect(pickWithCaps(ranked, 3, 0.4, true).map((s) => s.key)).toEqual(['h1', 'h2', 'z1']);
     expect(pickWithCaps(ranked, 4, 0.25, true).map((s) => s.key)).toEqual(['h1', 'h2', 'z1', 'h3']);
+  });
+});
+
+describe('authorOf', () => {
+  it('reads the author from blog platforms only', () => {
+    expect(authorOf({ key: 'zenn.dev/kame/articles/x' })).toBe('zenn.dev/kame');
+    expect(authorOf({ key: 'qiita.com/kame/items/x' })).toBe('qiita.com/kame');
+    expect(authorOf({ key: 'github.blog/changelog/x' })).toBeUndefined();
+    expect(authorOf({ key: 'dev.to' })).toBeUndefined();
   });
 });
 
@@ -252,8 +270,8 @@ describe('buildSections', () => {
       story({ key: 'today', ...mine, pop: 0.4 }),
     ];
     const seen = {
-      shown: { date: '2026-11-07', pop: 0.45 },
-      grew: { date: '2026-11-07', pop: 0.5 },
+      shown: { date: '2026-11-06', pop: 0.45 },
+      grew: { date: '2026-11-06', pop: 0.5 },
       today: { date: today, pop: 0.4 },
     };
     const ai = buildSections({ ...base, stories, seen }).find((s) => s.title === 'ai')?.stories;
@@ -261,6 +279,36 @@ describe('buildSections', () => {
       ['grew', true],
       ['today', false],
     ]);
+  });
+
+  it('keeps a story for the day after it was first shown, so a skipped day loses nothing', () => {
+    const stories = [story({ key: 'yesterday', interest: 1, topics: ['ai'], pop: 0.5 })];
+    const seen = { yesterday: { date: '2026-11-07', pop: 0.5 } };
+    const ai = buildSections({ ...base, stories, seen }).find((s) => s.title === 'ai')?.stories;
+    expect(ai?.map((s) => [s.key, s.resurfaced ?? false])).toEqual([['yesterday', false]]);
+  });
+
+  it('ranks a story that only carries the topic as a tag as if it were less popular', () => {
+    const tagged = story({ key: 'tagged', interest: 1, topics: ['ai'], pop: 0.9 });
+    const named = (pop: number) => story({ key: 'named', interest: 1, topics: ['ai'], pop, titleMatch: true });
+    expect(sectionKeys(buildSections({ ...base, stories: [tagged, named(0.7)] })).ai).toEqual(['named', 'tagged']);
+    expect(sectionKeys(buildSections({ ...base, stories: [tagged, named(0.4)] })).ai).toEqual(['tagged', 'named']);
+  });
+
+  it('fills a quiet topic with older stories, up to two weeks old', () => {
+    const stories = [
+      story({ key: 'fresh', interest: 1, topics: ['rust'], pop: 0.3 }),
+      story({ key: 'last-week', interest: 1, topics: ['rust'], pop: 0.9, publishedAt: '2026-11-01T00:00:00Z' }),
+      story({ key: 'last-month', interest: 1, topics: ['rust'], pop: 0.9, publishedAt: '2026-10-10T00:00:00Z' }),
+    ];
+    expect(sectionKeys(buildSections({ ...base, stories })).rust).toEqual(['fresh', 'last-week']);
+  });
+
+  it('shows one story per author in a section while others have stories', () => {
+    const post = (key: string, author: string, pop: number) =>
+      story({ key: `dev.to/${author}/${key}`, interest: 1, topics: ['ai'], pop, appearances: from('devto', pop) });
+    const stories = [post('a', 'promo', 0.99), post('b', 'promo', 0.98), post('c', 'someone', 0.5)];
+    expect(sectionKeys(buildSections({ ...base, stories })).ai).toEqual(['dev.to/promo/a', 'dev.to/someone/c']);
   });
 
   it('drops old platform stories', () => {

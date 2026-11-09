@@ -93,9 +93,11 @@ export function mergeIntoStories(items: RawItem[], percentileOf: (item: RawItem)
         matchedKeywords: [],
         publisher: item.publisher,
         releaseKind: item.releaseKind,
+        lookups: item.lookups,
       });
       continue;
     }
+    if (item.lookups) existing.lookups = [...new Set([...(existing.lookups ?? []), ...item.lookups])];
     // Listed twice on the same platform: keep the higher score
     const sameSource = existing.appearances.findIndex((a) => a.source === item.source);
     const prev = existing.appearances[sameSource];

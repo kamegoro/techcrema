@@ -24,7 +24,7 @@ TechCrema shows the overlap: **popular right now _and_ about your topics**, one 
 - ⚖️ **Fair across sites**: 300 HN points and 300 Hatena bookmarks don't mean the same thing, so every score becomes a percentile within its own site ([how it works](docs/how-it-works.md))
 - 🧭 **A section per topic**: your topics are the table of contents, each with its best stories and a "Show more"
 - 🔎 **Goes looking for your topics**: besides the front pages, it checks each topic's tag on Zenn, Qiita, dev.to and Lobsters, so niche topics still turn up
-- 🔁 **No repeats**: what you saw yesterday stays gone
+- 🔁 **No repeats, no gaps**: a story stays for two days, so a day you skip loses nothing, and what you already read moves aside
 - 📱 **Phone first**: dark mode, add to home screen, one small JSON file
 - 🔇 **Mute and save** right from the page; everything stays in your browser
 

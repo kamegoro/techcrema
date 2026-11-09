@@ -27,6 +27,31 @@ interface GithubRelease {
   published_at: string | null;
   draft: boolean;
   prerelease: boolean;
+  body?: string | null;
+}
+
+/** Headings that only say "here are the changes" */
+const GENERIC_HEADING =
+  /^(what'?s (changed|new)|changes|changelog|notable changes|highlights|release notes|features|bug fixes|summary)$/i;
+const SUMMARY_LENGTH = 90;
+
+/**
+ * The first thing a release says, as plain text: its first specific heading or first list item.
+ * e.g. "## 🥟 Run tests with Bun" → "🥟 Run tests with Bun"; "- Added `/foo` to …" → "Added /foo to …"
+ */
+export function releaseSummary(body: string | null | undefined): string | undefined {
+  for (const raw of (body ?? '').split('\n')) {
+    const line = raw.trim();
+    const heading = line.match(/^#{1,6}\s+(.+)$/)?.[1];
+    const item = line.match(/^[-*]\s+(.+)$/)?.[1];
+    const text = (heading ?? item)
+      ?.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/[`*_]/g, '')
+      .trim();
+    if (!text || (heading && GENERIC_HEADING.test(text))) continue;
+    return text.length > SUMMARY_LENGTH ? `${text.slice(0, SUMMARY_LENGTH - 1).trimEnd()}…` : text;
+  }
+  return undefined;
 }
 
 /** Classifies a release from tags like v1.2.3, 1.2.3 or nvim-0.11.0 */
@@ -49,15 +74,20 @@ export async function fetchGithubReleases(repo: string): Promise<RawItem[]> {
     releases
       // Skip moving tags such as "nightly" or "stable"; they duplicate the versioned releases
       .filter((r) => !r.draft && !r.prerelease && /\d/.test(r.tag_name))
-      .map((r) => ({
-        source: 'github_release',
-        title: `${repo.split('/')[1]} ${r.name?.trim() || r.tag_name}`,
-        url: r.html_url,
-        score: null,
-        tags: [],
-        publishedAt: r.published_at,
-        publisher: repo,
-        releaseKind: classifyRelease(r.tag_name),
-      }))
+      .map((r) => {
+        const summary = releaseSummary(r.body);
+        const name = `${repo.split('/')[1]} ${r.name?.trim() || r.tag_name}`;
+        return {
+          source: 'github_release',
+          // A version number alone says nothing about the release, so the title carries its first point
+          title: summary ? `${name}: ${summary}` : name,
+          url: r.html_url,
+          score: null,
+          tags: [],
+          publishedAt: r.published_at,
+          publisher: repo,
+          releaseKind: classifyRelease(r.tag_name),
+        };
+      })
   );
 }

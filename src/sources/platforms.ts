@@ -122,17 +122,22 @@ interface DevtoArticle {
   tag_list: string[];
 }
 
+/** dev.to's own community threads (challenges, pet photos, site news): popular there, but not tech news */
+const DEVTO_COMMUNITY_TAGS = new Set(['devchallenge', 'watercooler', 'community', 'meta']);
+
 async function devtoArticles(url: string): Promise<RawItem[]> {
   const items = await fetchJson<DevtoArticle[]>(url);
-  return items.map((a) => ({
-    source: 'devto',
-    title: a.title,
-    url: a.url,
-    score: a.public_reactions_count,
-    scoreLabel: 'reactions',
-    tags: a.tag_list ?? [],
-    publishedAt: a.published_timestamp,
-  }));
+  return items
+    .filter((a) => !(a.tag_list ?? []).some((t) => DEVTO_COMMUNITY_TAGS.has(t)))
+    .map((a) => ({
+      source: 'devto',
+      title: a.title,
+      url: a.url,
+      score: a.public_reactions_count,
+      scoreLabel: 'reactions',
+      tags: a.tag_list ?? [],
+      publishedAt: a.published_timestamp,
+    }));
 }
 
 export function fetchDevto(): Promise<RawItem[]> {
@@ -194,6 +199,18 @@ interface GithubRepo {
   created_at: string;
 }
 
+/**
+ * New-repo rankings are full of bought stars: a wave of repos promising a "pre-configured environment"
+ * for some paid app (malware lures), and repos with no description or one that only repeats the name.
+ */
+const SPAM_DESCRIPTION = /pre-?configured (environment|production build)|automated deployment pipeline/i;
+
+function isSpamRepo(r: GithubRepo): boolean {
+  const description = r.description?.trim();
+  if (!description || description === r.full_name.split('/')[1]) return true;
+  return SPAM_DESCRIPTION.test(description);
+}
+
 export async function fetchGithubNewRepos(now: Date): Promise<RawItem[]> {
   const since = isoDaysAgo(7, now).slice(0, 10);
   const q = encodeURIComponent(`created:>${since}`);
@@ -201,17 +218,19 @@ export async function fetchGithubNewRepos(now: Date): Promise<RawItem[]> {
     `https://api.github.com/search/repositories?q=${q}&sort=stars&order=desc&per_page=50`,
     githubHeaders(),
   );
-  return data.items.map((r) => ({
-    source: 'github_new_repos',
-    title: r.description ? `${r.full_name} — ${r.description}` : r.full_name,
-    url: r.html_url,
-    score: r.stargazers_count,
-    scoreLabel: '★',
-    // Topics only: the implementation language says little about what a repo is for
-    // (every TypeScript repo would otherwise match a "typescript" or "frontend" topic)
-    tags: r.topics ?? [],
-    publishedAt: r.created_at,
-  }));
+  return data.items
+    .filter((r) => !isSpamRepo(r))
+    .map((r) => ({
+      source: 'github_new_repos',
+      title: `${r.full_name} — ${r.description}`,
+      url: r.html_url,
+      score: r.stargazers_count,
+      scoreLabel: '★',
+      // Topics only: the implementation language says little about what a repo is for
+      // (every TypeScript repo would otherwise match a "typescript" or "frontend" topic)
+      tags: r.topics ?? [],
+      publishedAt: r.created_at,
+    }));
 }
 
 /**
@@ -231,7 +250,7 @@ const TAG_DAYS = 4;
 const tagSlug = (tag: string) => tag.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const popularEnough = (items: RawItem[], tag: string) =>
-  items.filter((i) => Number(i.score) >= TAG_MIN_SCORE).map((i) => ({ ...i, tags: [...i.tags, tag] }));
+  items.filter((i) => Number(i.score) >= TAG_MIN_SCORE).map((i) => ({ ...i, lookups: [tag] }));
 
 async function bySlug(tag: string, request: (slug: string) => Promise<RawItem[]>): Promise<RawItem[]> {
   const slug = tagSlug(tag);

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchJson, fetchText } from '../src/http.ts';
-import { classifyRelease, fetchGithubReleases, fetchOfficialFeed } from '../src/sources/official.ts';
+import { classifyRelease, fetchGithubReleases, fetchOfficialFeed, releaseSummary } from '../src/sources/official.ts';
 
 vi.mock('../src/http.ts', () => ({ fetchJson: vi.fn(), fetchText: vi.fn(), githubHeaders: () => ({}) }));
 
@@ -55,6 +55,27 @@ describe('fetchGithubReleases', () => {
       ['b v2.1.0', 'minor', 'a/b'],
       ['b v2.0.1', 'patch', 'a/b'],
     ]);
+  });
+
+  it('adds the first point of the release notes to the title', async () => {
+    vi.mocked(fetchJson).mockResolvedValue([
+      { ...release, name: 'v2.1.319', tag_name: 'v2.1.319', body: "## What's changed\n\n- Added `/usage` spend" },
+    ]);
+    expect((await fetchGithubReleases('a/claude-code'))[0]?.title).toBe('claude-code v2.1.319: Added /usage spend');
+  });
+});
+
+describe('releaseSummary', () => {
+  it('takes the first specific heading or list item, as plain text', () => {
+    expect(releaseSummary('## 🥟 Run tests with [Bun](https://bun.com)\n- other')).toBe('🥟 Run tests with Bun');
+    expect(releaseSummary('### Notable Changes\n#### V8 15.6\n')).toBe('V8 15.6');
+    expect(releaseSummary('Intro text\n* **Fixed** a crash')).toBe('Fixed a crash');
+  });
+
+  it('shortens a long point and gives up on notes with neither', () => {
+    expect(releaseSummary(`- ${'x'.repeat(200)}`)).toBe(`${'x'.repeat(89)}…`);
+    expect(releaseSummary('Just a paragraph.')).toBeUndefined();
+    expect(releaseSummary(null)).toBeUndefined();
   });
 });
 

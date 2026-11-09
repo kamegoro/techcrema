@@ -220,6 +220,7 @@ describe('buildSections', () => {
       story({ key: 'rust-and-ai', interest: 1, topics: ['rust', 'ai'], pop: 0.5 }),
       story({ key: 'hot', pop: 0.99 }),
       story({ key: 'warm', pop: 0.9 }),
+      story({ key: 'cool', pop: 0.8 }),
       story({ key: 'repo', appearances: from('github_new_repos', 0.9), pop: 0.9 }),
     ];
     const sections = buildSections({ ...base, stories });
@@ -234,7 +235,7 @@ describe('buildSections', () => {
       official: ['official'],
       ai: ['ai-hot', 'ai-cold'],
       rust: ['rust-and-ai'],
-      trending: ['hot'],
+      trending: ['hot', 'warm'],
       repos: ['repo'],
     });
   });

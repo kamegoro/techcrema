@@ -96,8 +96,8 @@ export function isMuted(
 const OFFICIAL_SOURCES: ReadonlySet<SourceId> = new Set(['official', 'github_release']);
 const RESURFACE_DELTA = 0.1;
 const PLATFORM_FRESH_DAYS = 4;
-/** Outside your topics, only the top few percent of each platform make it onto the page */
-const TRENDING_MIN_POP = 0.97;
+/** Outside your topics, only the top 10% of each platform can make it onto the page */
+const TRENDING_MIN_POP = 0.9;
 
 export interface SeenEntry {
   date: string;

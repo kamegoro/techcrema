@@ -160,8 +160,8 @@ describe('TAG_FETCHERS', () => {
     article_type: 'tech',
   });
 
-  it('Zenn: asks for the topic by its slug, drops posts with almost no likes and adds the tag', async () => {
-    json.mockResolvedValue({ articles: [zenn(12), zenn(1)] });
+  it('Zenn: asks for the topic by its slug, drops posts nobody liked and adds the tag', async () => {
+    json.mockResolvedValue({ articles: [zenn(12), zenn(0)] });
     expect(await TAG_FETCHERS.zenn('Node.js', now)).toEqual([
       expect.objectContaining({ score: 12, tags: ['Node.js'] }),
     ]);

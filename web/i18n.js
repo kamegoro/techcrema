@@ -168,7 +168,8 @@ export function timeAgo(iso) {
   if (!iso) return '';
   const seconds = (Date.now() - Date.parse(iso)) / 1000;
   if (Number.isNaN(seconds)) return '';
-  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto', style: 'short' });
+  // Narrow ("21h ago", "21時間前") keeps a story's details on one line on a phone
+  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto', style: 'narrow' });
   if (seconds < 60) return rtf.format(0, 'second');
   if (seconds < 3600) return rtf.format(-Math.floor(seconds / 60), 'minute');
   if (seconds < 86400) return rtf.format(-Math.floor(seconds / 3600), 'hour');

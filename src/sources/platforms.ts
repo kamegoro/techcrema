@@ -220,7 +220,11 @@ export async function fetchGithubNewRepos(now: Date): Promise<RawItem[]> {
  */
 export type TagPlatform = 'zenn' | 'qiita' | 'devto' | 'lobsters';
 
-const TAG_MIN_SCORE = 3;
+/**
+ * At least one reaction. Stories are ranked by popularity within a topic, so in a busy topic these
+ * only end up behind "Show more"; in a quiet one (few posts anywhere) they are what there is to read.
+ */
+const TAG_MIN_SCORE = 1;
 const TAG_DAYS = 4;
 
 /** Zenn, dev.to and Lobsters spell tags in lowercase letters and digits only ("Node.js" → nodejs) */

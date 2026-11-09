@@ -45,8 +45,11 @@
         <a class="tab" href="#later" data-tab="later" data-i18n="tab.later">Later<span class="tab-count" id="count-later"></span></a>
         <a class="tab" href="#settings" data-tab="settings" data-i18n="tab.mute">Muted<span class="tab-count" id="count-mute"></span></a>
       </nav>
-      <nav class="section-nav" id="section-nav" aria-label="Sections" data-i18n-aria="sections"></nav>
     </header>
+    <!-- Only the section list stays on screen while scrolling; the title and tabs scroll away -->
+    <div class="section-bar">
+      <nav class="section-nav" id="section-nav" aria-label="Sections" data-i18n-aria="sections"></nav>
+    </div>
 
     <main id="main" class="content" tabindex="-1"></main>
 

@@ -101,7 +101,8 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  scroll-padding-top: 150px;
+  /* Leaves room for the sticky section list when jumping to a section */
+  scroll-padding-top: 64px;
 }
 
 body {
@@ -168,6 +169,11 @@ a {
 }
 
 .app-header {
+  border-bottom: 1px solid var(--border);
+  padding-top: env(safe-area-inset-top);
+}
+
+.section-bar {
   position: sticky;
   top: 0;
   z-index: 10;
@@ -175,7 +181,9 @@ a {
   backdrop-filter: saturate(180%) blur(14px);
   -webkit-backdrop-filter: saturate(180%) blur(14px);
   border-bottom: 1px solid var(--border);
-  padding-top: env(safe-area-inset-top);
+}
+.section-bar:has(.section-nav:empty) {
+  display: none;
 }
 
 .header-inner,
@@ -298,8 +306,7 @@ a {
   overflow-x: auto;
   scrollbar-width: none;
   padding-top: 8px;
-  padding-bottom: 10px;
-  border-top: 1px solid var(--border);
+  padding-bottom: 8px;
 }
 .section-nav::-webkit-scrollbar {
   display: none;

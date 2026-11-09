@@ -7,7 +7,7 @@
 5. **Sections.**
    - **Official:** new posts from the blogs and releases you follow.
    - **One per topic:** the stories whose heaviest matching topic is this one, most popular first. The rest wait behind "Show more".
-   - **Elsewhere:** no topic match and popularity ≥ 0.97.
+   - **Elsewhere:** no topic match and popularity ≥ 0.9, most popular first.
    - **New repos:** repositories from the last 7 days gaining stars, your topics first.
 6. **Variety.** No single platform fills more than 40% of a section while others have stories to offer.
 7. **Freshness.** Platform stories older than 4 days are dropped. Stories shown on an earlier day stay hidden unless their popularity rises by 0.1 or more; then they come back once, marked *Back again*.

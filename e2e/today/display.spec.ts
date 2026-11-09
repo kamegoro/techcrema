@@ -14,11 +14,13 @@ test.describe('Today page', () => {
           - link "Today 7"
           - link "Later"
           - link "Muted"
-        - navigation "Sections":
-          - link "Official 1"
-          - link "Rust 3"
-          - link "Elsewhere 2"
-          - link "New repos 1"
+    `);
+    await expect(page.getByRole('navigation', { name: 'Sections' })).toMatchAriaSnapshot(`
+      - navigation "Sections":
+        - link "Official 1"
+        - link "Rust 3"
+        - link "Elsewhere 2"
+        - link "New repos 1"
     `);
     await reader.expectCurrentTab('Today');
   });
@@ -49,7 +51,7 @@ test.describe('Today page', () => {
             - /url: https://alpha.dev/a
         - link "Discussion on HN (120 pt)"
         - text: alpha.dev
-        - time: 3 hr. ago
+        - time: 3h ago
         - button "Read later"
         - button "Mute"
     `);

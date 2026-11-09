@@ -62,7 +62,7 @@ topics: |
 - Matching ignores case
 - A story that matches several topics is listed once, under the one with the highest weight (the first one written, on a tie)
 
-**Tags.** Front pages rarely carry niche topics, so TechCrema also looks each topic up by tag on Zenn, Qiita, dev.to and Lobsters (those in your `sources`), and keeps stories with at least 3 reactions from the last 4 days.
+**Tags.** Front pages rarely carry niche topics, so TechCrema also looks each topic up by tag on Zenn, Qiita, dev.to and Lobsters (those in your `sources`), and keeps stories from the last 4 days with at least one reaction. They are ranked with everything else, so in a busy topic the less popular ones end up behind "Show more".
 By default the tag is the topic's name (`Node.js` → `nodejs`). Set `tags` to look up others, or `tags: []` to skip the lookup. A name with spaces or non-ASCII characters has no default tag.
 
 ## Using a config file

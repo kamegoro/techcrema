@@ -3,15 +3,15 @@ import {
   authorOf,
   buildSections,
   groupOfficial,
-  isMuted,
+  interestScorer,
   keywordMatcher,
+  muteFilter,
   percentile,
   pickWithCaps,
   popularity,
   primarySource,
-  scoreInterest,
-} from '../src/rank.ts';
-import type { InterestConfig, LayoutConfig, SourceId, Story } from '../src/types.ts';
+} from '#src/rank.ts';
+import type { InterestConfig, LayoutConfig, SourceId, Story } from '#src/types.ts';
 
 function story(over: Partial<Story> & { key: string }): Story {
   return {
@@ -41,7 +41,8 @@ describe('percentile', () => {
   });
   it('stays within 0-1 even when the window lacks the score', () => {
     const p = percentile(100, [1, 2, 3]);
-    expect(p > 0.8 && p < 1).toBeTruthy();
+    expect(p).toBeGreaterThan(0.8);
+    expect(p).toBeLessThan(1);
   });
   it('is 0.5 for an empty window', () => {
     expect(percentile(5, [])).toBe(0.5);
@@ -87,7 +88,7 @@ describe('keywordMatcher', () => {
   });
 });
 
-describe('scoreInterest', () => {
+describe('interestScorer', () => {
   const config: InterestConfig = {
     topics: {
       em: { weight: 0.7, keywords: ['1on1'], tags: [] },
@@ -96,43 +97,43 @@ describe('scoreInterest', () => {
     },
   };
   it('returns the highest weight, listing the heaviest topic first', () => {
-    const r = scoreInterest({ title: 'Neovim で 1on1 メモ', tags: [] }, config);
+    const r = interestScorer(config)({ title: 'Neovim で 1on1 メモ', tags: [] });
     expect(r.interest).toBe(1);
     expect(r.topics).toEqual(['neovim', 'em']);
     expect(r.matchedKeywords).toEqual(['1on1', 'neovim']);
   });
   it('keeps the configured order between topics of the same weight', () => {
-    expect(scoreInterest({ title: 'Neovim and npm', tags: [] }, config).topics).toEqual(['neovim', 'node']);
+    expect(interestScorer(config)({ title: 'Neovim and npm', tags: [] }).topics).toEqual(['neovim', 'node']);
   });
   it('also looks at tags', () => {
-    expect(scoreInterest({ title: 'Plugin tips', tags: ['Lua'] }, config).interest).toBe(1);
+    expect(interestScorer(config)({ title: 'Plugin tips', tags: ['Lua'] }).interest).toBe(1);
   });
   it('counts a story a tag lookup found under the topic, however the tag is spelled', () => {
-    const r = scoreInterest({ title: 'Release notes', tags: [], lookups: ['NodeJS'] }, config);
+    const r = interestScorer(config)({ title: 'Release notes', tags: [], lookups: ['NodeJS'] });
     expect(r.topics).toEqual(['node']);
     expect(r.matchedKeywords).toEqual([]);
     expect(r.titleMatch).toBe(false);
   });
   it("ignores a front-page story's own tags unless a keyword matches them", () => {
-    expect(scoreInterest({ title: 'Release notes', tags: ['NodeJS'] }, config).topics).toEqual([]);
+    expect(interestScorer(config)({ title: 'Release notes', tags: ['NodeJS'] }).topics).toEqual([]);
   });
   it('says whether a keyword of the first topic is in the title', () => {
-    expect(scoreInterest({ title: 'Neovim tips', tags: [] }, config).titleMatch).toBe(true);
-    expect(scoreInterest({ title: 'Plugin tips', tags: ['lua'] }, config).titleMatch).toBe(false);
+    expect(interestScorer(config)({ title: 'Neovim tips', tags: [] }).titleMatch).toBe(true);
+    expect(interestScorer(config)({ title: 'Plugin tips', tags: ['lua'] }).titleMatch).toBe(false);
   });
   it('is 0 when nothing matches', () => {
-    expect(scoreInterest({ title: 'Rust news', tags: [] }, config).interest).toBe(0);
+    expect(interestScorer(config)({ title: 'Rust news', tags: [] }).interest).toBe(0);
   });
 });
 
-describe('isMuted', () => {
-  const mute = { keywords: ['crypto'], domains: ['example.org'] };
+describe('muteFilter', () => {
+  const isMuted = muteFilter({ keywords: ['crypto'], domains: ['example.org'] });
   it('mutes by keyword', () => {
-    expect(isMuted({ title: 'Crypto winter', tags: [], domain: 'a.com' }, mute)).toBe(true);
+    expect(isMuted({ title: 'Crypto winter', tags: [], domain: 'a.com' })).toBe(true);
   });
   it('mutes a domain and its subdomains', () => {
-    expect(isMuted({ title: 'x', tags: [], domain: 'blog.example.org' }, mute)).toBe(true);
-    expect(isMuted({ title: 'x', tags: [], domain: 'notexample.org' }, mute)).toBe(false);
+    expect(isMuted({ title: 'x', tags: [], domain: 'blog.example.org' })).toBe(true);
+    expect(isMuted({ title: 'x', tags: [], domain: 'notexample.org' })).toBe(false);
   });
 });
 
@@ -224,7 +225,7 @@ describe('buildSections', () => {
   };
   const now = new Date('2026-11-08T09:00:00Z');
   const today = '2026-11-08';
-  const base = { layout, language: 'en' as const, topics: ['ai', 'rust'], today, now, seen: {} };
+  const base = { layout, language: 'en' as const, topics: ['ai', 'rust'], today, now, seen: {}, spare: 0 };
   const sectionKeys = (sections: ReturnType<typeof buildSections>) =>
     Object.fromEntries(sections.map((s) => [s.title ?? s.id, s.stories.map((st) => st.key)]));
 

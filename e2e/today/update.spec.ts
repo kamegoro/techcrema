@@ -1,6 +1,6 @@
 /** Coming back to the page after the feed was rebuilt */
-import { makeFeed, story } from '../support/feeds.ts';
-import { test } from '../support/test.ts';
+import { makeFeed, story } from '#e2e/support/feeds.ts';
+import { test } from '#e2e/support/test.ts';
 
 const nextEdition = () => {
   const feed = makeFeed({ generatedAt: '2026-11-08T08:30:00.000Z' });

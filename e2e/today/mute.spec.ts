@@ -1,6 +1,6 @@
 /** Muting sites and keywords from a story, and taking it back */
-import { makeFeed } from '../support/feeds.ts';
-import { expect, test } from '../support/test.ts';
+import { makeFeed } from '#e2e/support/feeds.ts';
+import { expect, test } from '#e2e/support/test.ts';
 
 test.describe('Mute', () => {
   test.beforeEach(async ({ reader }) => {

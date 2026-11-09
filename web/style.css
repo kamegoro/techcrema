@@ -225,12 +225,6 @@ a {
   text-overflow: ellipsis;
 }
 
-.header-actions {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
 .icon-button {
   display: inline-grid;
   place-items: center;
@@ -389,9 +383,6 @@ a {
   min-width: 0;
   padding: 11px 6px 2px 14px;
 }
-.story-title {
-  padding-right: 8px;
-}
 .story-footer {
   display: flex;
   align-items: center;
@@ -401,6 +392,7 @@ a {
 
 .story-title {
   margin: 0;
+  padding-right: 8px;
   font-size: 15.5px;
   font-weight: 620;
   line-height: 1.45;
@@ -640,12 +632,6 @@ a.source:hover {
   font-size: 13px;
   color: var(--text-muted);
 }
-.help code {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  font-size: 12.5px;
-}
 
 .button {
   display: inline-flex;
@@ -671,10 +657,6 @@ a.source:hover {
 .button-primary:hover {
   background: var(--accent);
   filter: brightness(1.08);
-}
-.button-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 .button-small {
   min-height: 40px;

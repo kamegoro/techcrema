@@ -1,6 +1,6 @@
 /** A feed is outside input: nothing in it may run code or send the reader elsewhere unexpectedly */
-import { makeFeed } from '../support/feeds.ts';
-import { expect, test } from '../support/test.ts';
+import { makeFeed } from '#e2e/support/feeds.ts';
+import { expect, test } from '#e2e/support/test.ts';
 
 test.describe('Hostile feed content', () => {
   test.beforeEach(async ({ reader }) => {

@@ -1,6 +1,6 @@
 /** Moving around the page */
-import { makeFeed } from '../support/feeds.ts';
-import { expect, test } from '../support/test.ts';
+import { makeFeed } from '#e2e/support/feeds.ts';
+import { test } from '#e2e/support/test.ts';
 
 test.describe('Section list', () => {
   test('a section can be reached from the section list', async ({ reader }) => {
@@ -14,7 +14,6 @@ test.describe('Section list', () => {
     await reader.open(makeFeed());
     await reader.jumpToSection('New repos');
     await reader.expectSectionInView('New repos');
-    await expect(page.getByRole('navigation', { name: 'Sections' })).toBeInViewport();
-    await expect(page.getByRole('heading', { level: 1 })).not.toBeInViewport();
+    await reader.expectSectionListOnScreen();
   });
 });

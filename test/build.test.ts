@@ -1,15 +1,15 @@
-import { mkdtemp, readdir, readFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { build, distDir, localizeIndex } from '../src/build.ts';
-import { ROOT, saveFeed } from '../src/store.ts';
-import type { Feed } from '../src/types.ts';
+import { build, distDir, localizeIndex } from '#src/build.ts';
+import { ROOT, saveFeed } from '#src/store.ts';
+import type { Feed } from '#src/types.ts';
+import { tempDir } from './support/temp-dir.ts';
 
 let out: string;
 
 beforeEach(async () => {
-  const tmp = await mkdtemp(path.join(tmpdir(), 'tc-build-'));
+  const tmp = await tempDir('build');
   out = path.join(tmp, 'site');
   vi.stubEnv('TECHCREMA_DATA_DIR', path.join(tmp, 'data'));
   vi.stubEnv('TECHCREMA_OUT_DIR', out);
@@ -32,8 +32,9 @@ describe('build', () => {
   it('replaces whatever an earlier build left behind', async () => {
     await saveFeed({ language: 'en', title: 'T', sections: [] } as unknown as Feed);
     await build();
+    await writeFile(path.join(out, 'stale.txt'), 'left over');
     await build();
-    expect(await readdir(out)).toContain('feed.json');
+    expect(await readdir(out)).not.toContain('stale.txt');
   });
 });
 

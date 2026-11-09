@@ -1,6 +1,6 @@
 /** Light and dark mode */
-import { makeFeed } from '../support/feeds.ts';
-import { test } from '../support/test.ts';
+import { makeFeed } from '#e2e/support/feeds.ts';
+import { test } from '#e2e/support/test.ts';
 
 test.describe('Dark mode', () => {
   test('follows the system until the reader chooses', async ({ reader, page }) => {

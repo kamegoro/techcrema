@@ -7,7 +7,6 @@ export const heading = (scope: Scope, name: string | RegExp, level?: number) =>
   scope.getByRole('heading', { name, exact: typeof name === 'string', level });
 export const region = (scope: Scope, name: string) => scope.getByRole('region', { name, exact: true });
 export const article = (scope: Scope, name: string) => scope.getByRole('article', { name, exact: true });
-export const articles = (scope: Scope) => scope.getByRole('article');
 export const button = (scope: Scope, name: string | RegExp) =>
   scope.getByRole('button', { name, exact: typeof name === 'string' });
 export const link = (scope: Scope, name: string | RegExp) =>

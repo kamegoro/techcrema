@@ -1,10 +1,3 @@
-/** Requests to the same host run one at a time with a pause in between, so no site gets hammered */
-
-/** On Actions, name the repository running the job, so each user's requests identify their own repo */
-export function userAgent(env: NodeJS.ProcessEnv = process.env): string {
-  const repo = env.GITHUB_REPOSITORY ?? '';
-  return `techcrema/1 (personal tech reader; github.com/${/^[\w.-]+\/[\w.-]+$/.test(repo) ? repo : 'kamegoro/techcrema'})`;
-}
 const DEFAULT_INTERVAL_MS = 1500;
 /** Per-host pauses, e.g. to honor Crawl-delay in robots.txt */
 const HOST_INTERVAL_MS: Record<string, number> = {
@@ -13,36 +6,31 @@ const HOST_INTERVAL_MS: Record<string, number> = {
 };
 const TIMEOUT_MS = 20_000;
 /** Upper bound so a huge response can't exhaust memory (the largest feed we know of is under 1 MB) */
-export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
+const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
-const hostQueues = new Map<string, Promise<unknown>>();
+/** On Actions, name the repository running the job, so each user's requests identify their own repo */
+export function userAgent(env: NodeJS.ProcessEnv = process.env): string {
+  const repo = env.GITHUB_REPOSITORY ?? '';
+  return `techcrema/1 (personal tech reader; github.com/${/^[\w.-]+\/[\w.-]+$/.test(repo) ? repo : 'kamegoro/techcrema'})`;
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function rawFetch(url: string, headers: Record<string, string>): Promise<Response> {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': userAgent(), ...headers },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-    redirect: 'follow',
-  });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} ${res.statusText} (${url})`);
+/**
+ * The charset a response declares, in its Content-Type or, for XML, its declaration
+ * (some Japanese blogs still serve Shift_JIS or EUC-JP)
+ */
+function charsetOf(res: Response, head: Uint8Array): string {
+  const declared =
+    res.headers.get('content-type')?.match(/charset=["']?([\w-]+)/i)?.[1] ??
+    new TextDecoder('latin1').decode(head.subarray(0, 200)).match(/^<\?xml[^>]*encoding=["']([\w-]+)/i)?.[1];
+  try {
+    return new TextDecoder(declared ?? 'utf-8').encoding;
+  } catch {
+    return 'utf-8';
   }
-  return res;
-}
-
-export function politeFetch(url: string, headers: Record<string, string> = {}): Promise<Response> {
-  const host = new URL(url).host;
-  const interval = HOST_INTERVAL_MS[host] ?? DEFAULT_INTERVAL_MS;
-  const previous = hostQueues.get(host) ?? Promise.resolve();
-  const current = previous.then(() => rawFetch(url, headers));
-  // Whether this request succeeds or fails, the next one starts `interval` ms after it finishes.
-  // The queue holds a promise that never rejects, so one failure doesn't break the chain.
-  const wait = () => sleep(interval);
-  hostQueues.set(host, current.then(wait, wait));
-  return current;
 }
 
 /** Reads the body up to `limit` bytes and aborts with an error beyond that */
@@ -63,17 +51,46 @@ export async function readLimited(res: Response, limit = MAX_RESPONSE_BYTES): Pr
     }
     chunks.push(value);
   }
-  return Buffer.concat(chunks).toString('utf8');
+  const body = Buffer.concat(chunks);
+  return new TextDecoder(charsetOf(res, body)).decode(body);
+}
+
+async function get(url: string, headers: Record<string, string>): Promise<string> {
+  const res = await fetch(url, {
+    headers: { 'User-Agent': userAgent(), ...headers },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    // A redirect to another host isn't paused for that host; the sources we know of don't redirect across hosts
+    redirect: 'follow',
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText} (${url})`);
+  }
+  return readLimited(res);
+}
+
+const hostQueues = new Map<string, Promise<unknown>>();
+
+/**
+ * Requests to the same host run one at a time, body included, with a pause in between, so no site gets hammered.
+ * Whether a request succeeds or fails, the next one starts `interval` ms after it finishes.
+ */
+export function politeGet(url: string, headers: Record<string, string> = {}): Promise<string> {
+  const host = new URL(url).host;
+  const interval = HOST_INTERVAL_MS[host] ?? DEFAULT_INTERVAL_MS;
+  const previous = hostQueues.get(host) ?? Promise.resolve();
+  const current = previous.then(() => get(url, headers));
+  // The queue holds a promise that never rejects, so one failure doesn't break the chain
+  const wait = () => sleep(interval);
+  hostQueues.set(host, current.then(wait, wait));
+  return current;
 }
 
 export async function fetchJson<T>(url: string, headers: Record<string, string> = {}): Promise<T> {
-  const res = await politeFetch(url, { Accept: 'application/json', ...headers });
-  return JSON.parse(await readLimited(res)) as T;
+  return JSON.parse(await politeGet(url, { Accept: 'application/json', ...headers })) as T;
 }
 
-export async function fetchText(url: string): Promise<string> {
-  const res = await politeFetch(url);
-  return await readLimited(res);
+export function fetchText(url: string): Promise<string> {
+  return politeGet(url);
 }
 
 export function githubHeaders(): Record<string, string> {

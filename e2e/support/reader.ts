@@ -1,6 +1,6 @@
 /** What a reader does and sees, one method per step, like Gauge concepts. Built on semantic.ts. */
 import { expect, type Page, test } from '@playwright/test';
-import type { Feed } from '../../src/types.ts';
+import type { Feed } from '#src/types.ts';
 import { NOW } from './feeds.ts';
 import * as ui from './semantic.ts';
 
@@ -48,10 +48,12 @@ export class Reader {
   }
 
   async expectCurrentTab(tab: Tab) {
-    await expect(ui.link(ui.navigation(this.page, 'Views'), new RegExp(`^${tab}`))).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+    await step(`The ${tab} tab is the current one`, async () => {
+      await expect(ui.link(ui.navigation(this.page, 'Views'), new RegExp(`^${tab}`))).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+    });
   }
 
   /** The number next to a tab, e.g. Today 7 */
@@ -114,7 +116,44 @@ export class Reader {
   }
 
   async expectSectionInView(name: string) {
-    await expect(ui.heading(this.section(name), name, 2)).toBeInViewport();
+    await step(`"${name}" is on screen`, async () => {
+      await expect(ui.heading(this.section(name), name, 2)).toBeInViewport();
+    });
+  }
+
+  async expectSectionListOnScreen() {
+    await step('The section list is still on screen and the page title is not', async () => {
+      await expect(ui.navigation(this.page, 'Sections')).toBeInViewport();
+      await expect(ui.heading(this.page, /.*/, 1)).not.toBeInViewport();
+    });
+  }
+
+  async expectLanguage(lang: string) {
+    await step(`The page is marked as language "${lang}"`, async () => {
+      await expect(this.page.locator('html')).toHaveAttribute('lang', lang);
+    });
+  }
+
+  async expectPageTitle(title: string) {
+    await step(`The page is titled "${title}"`, async () => {
+      await expect(ui.heading(this.page, /.*/, 1)).toHaveText(title);
+      await expect(this.page).toHaveTitle(title);
+    });
+  }
+
+  async expectNoSidewaysScroll() {
+    await step('Nothing sticks out sideways', async () => {
+      expect(
+        await this.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+      ).toBeLessThanOrEqual(0);
+    });
+  }
+
+  /** The browser keeps what an older or broken version of the page saved */
+  async haveSavedState(saved: string) {
+    await step('The browser holds state saved by an older or broken version of the page', () =>
+      this.page.addInitScript((value) => localStorage.setItem('techcrema-state-v1', value), saved),
+    );
   }
 
   async openStory(title: string) {
@@ -136,17 +175,19 @@ export class Reader {
 
   /** Switches to another app and back, as when returning from an article */
   async comeBack() {
-    await step('Leave the page and come back to it', () =>
-      this.page.evaluate(() => {
+    await step('Leave the page and come back to it', async () => {
+      const checked = this.page.waitForResponse('**/feed.json');
+      await this.page.evaluate(() => {
         Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
         document.dispatchEvent(new Event('visibilitychange'));
-      }),
-    );
+      });
+      await checked;
+    });
   }
 
   async expectStoryRead(title: string) {
     await step(`"${title}" is marked as read`, async () => {
-      await expect(this.story(title)).toContainText('Read');
+      await expect(this.story(title).getByText('Read', { exact: true })).toHaveCount(1);
     });
   }
 
@@ -258,6 +299,7 @@ export class Reader {
   async expectDarkMode(on: boolean) {
     await step(`Dark mode is ${on ? 'on' : 'off'}`, async () => {
       await expect(ui.button(this.page, 'Dark mode')).toHaveAttribute('aria-pressed', String(on));
+      // The pressed state alone can't show that the page follows the system theme; the color scheme can
       await expect(this.page.locator('body')).toHaveCSS('color-scheme', on ? 'dark' : 'light');
     });
   }

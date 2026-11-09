@@ -1,5 +1,5 @@
 /** Feed data for tests. Times are fixed relative to NOW, and the page clock is frozen at NOW. */
-import type { Feed, SectionId, Story } from '../../src/types.ts';
+import type { Feed, SectionId, Story } from '#src/types.ts';
 
 export const NOW = new Date('2026-11-08T09:00:00Z');
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3_600_000).toISOString();

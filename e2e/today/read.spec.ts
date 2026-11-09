@@ -1,6 +1,6 @@
 /** Opening a story marks it as read; read stories make way for unread ones */
-import { makeFeed } from '../support/feeds.ts';
-import { test } from '../support/test.ts';
+import { makeFeed } from '#e2e/support/feeds.ts';
+import { test } from '#e2e/support/test.ts';
 
 test.describe('Read', () => {
   test('opening a story marks it as read and leaves it where it is', async ({ reader }) => {

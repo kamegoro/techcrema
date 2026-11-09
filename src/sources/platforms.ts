@@ -1,19 +1,22 @@
 /** Sources with a popularity signal. Official APIs, RSS and public JSON only; no HTML scraping. */
 
-import { parseFeed } from '../feed-parser.ts';
-import { fetchJson, fetchText, githubHeaders } from '../http.ts';
-import type { RawItem } from '../types.ts';
+import { parseFeed } from '#src/feed-parser.ts';
+import { fetchJson, fetchText, githubHeaders } from '#src/http.ts';
+import type { RawItem } from '#src/types.ts';
 
-function isoDaysAgo(days: number, now: Date): string {
-  return new Date(now.getTime() - days * 86_400_000).toISOString();
+/** The UTC date `days` before `now`, as YYYY-MM-DD (the form search APIs take) */
+function dateDaysAgo(days: number, now: Date): string {
+  return new Date(now.getTime() - days * 86_400_000).toISOString().slice(0, 10);
 }
+
+/** "owner/name" → "name" */
+export const repoName = (fullName: string) => fullName.slice(fullName.indexOf('/') + 1);
 
 interface HnHit {
   objectID: string;
   title: string;
   url: string | null;
   points: number;
-  num_comments: number;
   created_at: string;
 }
 
@@ -41,7 +44,7 @@ export async function fetchHackerNews(): Promise<RawItem[]> {
 const HATENA_TECH_CATEGORY = '\u30c6\u30af\u30ce\u30ed\u30b8\u30fc';
 
 /** Hatena's comment page: /entry/s/ for https articles, /entry/ for http ones */
-export function hatenaEntryUrl(link: string): string {
+function hatenaEntryUrl(link: string): string {
   if (link.startsWith('https://')) return `https://b.hatena.ne.jp/entry/s/${link.slice('https://'.length)}`;
   return `https://b.hatena.ne.jp/entry/${link.replace(/^http:\/\//, '')}`;
 }
@@ -68,8 +71,9 @@ interface ZennArticle {
   article_type: string;
 }
 
-function zennItem(a: ZennArticle): RawItem {
-  return {
+async function zennArticles(query: string): Promise<RawItem[]> {
+  const data = await fetchJson<{ articles: ZennArticle[] }>(`https://zenn.dev/api/articles?${query}`);
+  return data.articles.map((a) => ({
     source: 'zenn',
     title: a.title,
     url: `https://zenn.dev${a.path}`,
@@ -77,12 +81,11 @@ function zennItem(a: ZennArticle): RawItem {
     scoreLabel: 'likes',
     tags: a.article_type === 'idea' ? ['idea'] : [],
     publishedAt: a.published_at,
-  };
+  }));
 }
 
-export async function fetchZenn(): Promise<RawItem[]> {
-  const data = await fetchJson<{ articles: ZennArticle[] }>('https://zenn.dev/api/articles?order=daily&count=60');
-  return data.articles.map(zennItem);
+export function fetchZenn(): Promise<RawItem[]> {
+  return zennArticles('order=daily&count=60');
 }
 
 interface QiitaItem {
@@ -111,7 +114,7 @@ async function searchQiita(query: string, perPage: number): Promise<RawItem[]> {
 }
 
 export function fetchQiita(now: Date): Promise<RawItem[]> {
-  return searchQiita(`created:>${isoDaysAgo(3, now).slice(0, 10)} stocks:>2`, 100);
+  return searchQiita(`created:>${dateDaysAgo(3, now)} stocks:>2`, 100);
 }
 
 interface DevtoArticle {
@@ -119,7 +122,7 @@ interface DevtoArticle {
   url: string;
   public_reactions_count: number;
   published_timestamp: string;
-  tag_list: string[];
+  tag_list: string[] | null;
 }
 
 /** dev.to's own community threads (challenges, pet photos, site news): popular there, but not tech news */
@@ -205,24 +208,25 @@ interface GithubRepo {
  */
 const SPAM_DESCRIPTION = /pre-?configured (environment|production build)|automated deployment pipeline/i;
 
-function isSpamRepo(r: GithubRepo): boolean {
+/** The repo's description, or null when it looks like spam */
+function realDescription(r: GithubRepo): string | null {
   const description = r.description?.trim();
-  if (!description || description === r.full_name.split('/')[1]) return true;
-  return SPAM_DESCRIPTION.test(description);
+  if (!description || description === repoName(r.full_name) || SPAM_DESCRIPTION.test(description)) return null;
+  return description;
 }
 
 export async function fetchGithubNewRepos(now: Date): Promise<RawItem[]> {
-  const since = isoDaysAgo(7, now).slice(0, 10);
-  const q = encodeURIComponent(`created:>${since}`);
+  const q = encodeURIComponent(`created:>${dateDaysAgo(7, now)}`);
   const data = await fetchJson<{ items: GithubRepo[] }>(
     `https://api.github.com/search/repositories?q=${q}&sort=stars&order=desc&per_page=50`,
     githubHeaders(),
   );
-  return data.items
-    .filter((r) => !isSpamRepo(r))
-    .map((r) => ({
+  return data.items.flatMap((r) => {
+    const description = realDescription(r);
+    if (!description) return [];
+    return {
       source: 'github_new_repos',
-      title: `${r.full_name} — ${r.description}`,
+      title: `${r.full_name} — ${description}`,
       url: r.html_url,
       score: r.stargazers_count,
       scoreLabel: '★',
@@ -230,7 +234,8 @@ export async function fetchGithubNewRepos(now: Date): Promise<RawItem[]> {
       // (every TypeScript repo would otherwise match a "typescript" or "frontend" topic)
       tags: r.topics ?? [],
       publishedAt: r.created_at,
-    }));
+    };
+  });
 }
 
 /**
@@ -249,12 +254,14 @@ const TAG_DAYS = 4;
 /** Zenn, dev.to and Lobsters spell tags in lowercase letters and digits only ("Node.js" → nodejs) */
 const tagSlug = (tag: string) => tag.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-const popularEnough = (items: RawItem[], tag: string) =>
-  items.filter((i) => Number(i.score) >= TAG_MIN_SCORE).map((i) => ({ ...i, lookups: [tag] }));
-
-async function bySlug(tag: string, request: (slug: string) => Promise<RawItem[]>): Promise<RawItem[]> {
-  const slug = tagSlug(tag);
-  return slug ? popularEnough(await request(slug), tag) : [];
+/**
+ * Runs one tag lookup and keeps the stories with enough reactions, marked with the tag they were found under.
+ * `spelled` is the tag as the platform writes it; an empty one means the platform can't look it up.
+ */
+async function lookup(tag: string, spelled: string, request: (spelled: string) => Promise<RawItem[]>) {
+  if (!spelled) return [];
+  const items = await request(spelled);
+  return items.filter((i) => (i.score ?? 0) >= TAG_MIN_SCORE).map((i) => ({ ...i, lookups: [tag] }));
 }
 
 /** Lobsters answers an unknown tag with an error page, so only tags it lists are asked for (the list is fetched once) */
@@ -267,19 +274,14 @@ function knownLobstersTags(): Promise<Set<string>> {
 }
 
 export const TAG_FETCHERS: Record<TagPlatform, (tag: string, now: Date) => Promise<RawItem[]>> = {
-  zenn: (tag) =>
-    bySlug(tag, async (slug) => {
-      const data = await fetchJson<{ articles: ZennArticle[] }>(
-        `https://zenn.dev/api/articles?topicname=${slug}&order=latest&count=30`,
-      );
-      return data.articles.map(zennItem);
-    }),
-  qiita: async (tag, now) =>
-    popularEnough(await searchQiita(`tag:${tag} created:>${isoDaysAgo(TAG_DAYS, now).slice(0, 10)}`, 30), tag),
+  zenn: (tag) => lookup(tag, tagSlug(tag), (slug) => zennArticles(`topicname=${slug}&order=latest&count=30`)),
+  qiita: (tag, now) => lookup(tag, tag, () => searchQiita(`tag:${tag} created:>${dateDaysAgo(TAG_DAYS, now)}`, 30)),
   devto: (tag) =>
-    bySlug(tag, (slug) => devtoArticles(`https://dev.to/api/articles?tag=${slug}&top=${TAG_DAYS}&per_page=30`)),
+    lookup(tag, tagSlug(tag), (slug) =>
+      devtoArticles(`https://dev.to/api/articles?tag=${slug}&top=${TAG_DAYS}&per_page=30`),
+    ),
   lobsters: (tag) =>
-    bySlug(tag, async (slug) =>
+    lookup(tag, tagSlug(tag), async (slug) =>
       (await knownLobstersTags()).has(slug) ? lobstersStories(`https://lobste.rs/t/${slug}.json`) : [],
     ),
 };

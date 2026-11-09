@@ -1,25 +1,24 @@
-import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { localDate, shiftDate } from '#src/dates.ts';
 import {
   dataDir,
   loadFeed,
   loadScoreWindow,
   loadSeen,
-  localDate,
   ROOT,
   saveFeed,
   saveScoreSnapshot,
   saveSeen,
-  shiftDate,
-} from '../src/store.ts';
-import type { Feed } from '../src/types.ts';
+} from '#src/store.ts';
+import type { Feed } from '#src/types.ts';
+import { tempDir } from './support/temp-dir.ts';
 
 let dir: string;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'tc-store-'));
+  dir = await tempDir('store');
   vi.stubEnv('TECHCREMA_DATA_DIR', dir);
 });
 
@@ -50,12 +49,17 @@ describe('score window', () => {
     expect(await loadScoreWindow('2026-11-08')).toEqual({});
   });
 
-  it('merges the last 14 days without today, and deletes older files', async () => {
-    await saveScoreSnapshot('2026-11-08', { hackernews: [999] });
-    await saveScoreSnapshot('2026-11-07', { hackernews: [1, 2] });
-    await saveScoreSnapshot('2026-10-25', { hackernews: [3], zenn: [4] });
+  it('reports a score folder it cannot read instead of treating it as empty', async () => {
+    await writeFile(path.join(dir, 'scores'), 'not a folder');
+    await expect(loadScoreWindow('2026-11-08')).rejects.toThrow(/ENOTDIR/);
+  });
+
+  it('merges the last 14 days without today; saving deletes snapshots older than that', async () => {
     await saveScoreSnapshot('2026-10-24', { hackernews: [5] });
+    await saveScoreSnapshot('2026-10-25', { hackernews: [3], zenn: [4] });
+    await saveScoreSnapshot('2026-11-07', { hackernews: [1, 2] });
     await writeFile(path.join(dir, 'scores', 'notes.txt'), 'not a snapshot');
+    await saveScoreSnapshot('2026-11-08', { hackernews: [999] });
 
     expect(await loadScoreWindow('2026-11-08')).toEqual({ hackernews: [3, 1, 2], zenn: [4] });
     expect((await readdir(path.join(dir, 'scores'))).sort()).toEqual([

@@ -10,10 +10,12 @@ export interface RawItem {
   tags: string[];
   publishedAt: string | null;
   publisher?: string;
-  releaseKind?: 'major' | 'minor' | 'patch' | 'other';
+  releaseKind?: ReleaseKind;
   /** Topic tags this item was found under, when it came from a tag lookup */
   lookups?: string[];
 }
+
+export type ReleaseKind = 'major' | 'minor' | 'patch' | 'other';
 
 export type SourceId =
   | 'hackernews'
@@ -49,7 +51,7 @@ export interface Story {
   /** Topic tags this story was found under by tag lookups */
   lookups?: string[];
   publisher?: string;
-  releaseKind?: RawItem['releaseKind'];
+  releaseKind?: ReleaseKind;
   /** In the official section: how many newer items from the same publisher were folded in ("+N more") */
   groupedCount?: number;
   /** Shown on an earlier day, back because it kept climbing */
@@ -109,3 +111,12 @@ export interface LayoutConfig {
   repos: number;
   max_source_ratio: number;
 }
+
+/** When a story was first shown on the page, and how popular it was the last time it was */
+export interface SeenEntry {
+  date: string;
+  pop: number;
+}
+
+/** Scores by source, e.g. { hackernews: [312, 95, …] } */
+export type ScoreSnapshot = Record<string, number[]>;

@@ -4,19 +4,19 @@
  */
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { dataDir, loadFeed, ROOT } from './store.ts';
+import { feedPath, loadFeed, ROOT } from './store.ts';
 
 export const distDir = () => path.resolve(process.env.TECHCREMA_OUT_DIR ?? path.join(ROOT, 'dist'));
 
 export async function build(): Promise<void> {
   const feed = await loadFeed();
-  if (!feed) throw new Error(`${dataDir()}/feed.json not found. Run \`npm run collect\` first.`);
+  if (!feed) throw new Error(`${feedPath()} not found. Run \`npm run collect\` first.`);
   const out = distDir();
   await rm(out, { recursive: true, force: true });
   await mkdir(out, { recursive: true });
   await cp(path.join(ROOT, 'web'), out, { recursive: true });
   // Only today's page is published; the score history and the seen list stay private
-  await cp(path.join(dataDir(), 'feed.json'), path.join(out, 'feed.json'));
+  await cp(feedPath(), path.join(out, 'feed.json'));
 
   // Bake the language and title into the HTML so the first paint is right before feed.json loads
   const indexFile = path.join(out, 'index.html');

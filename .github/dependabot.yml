@@ -16,6 +16,10 @@ updates:
       interval: weekly
     cooldown:
       default-days: 3
+    # The action runs on Node 24, so the Node types stay on 24 to catch APIs it doesn't have
+    ignore:
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
       dev-dependencies:
         dependency-type: development

@@ -1,6 +1,6 @@
 /** What the Today page shows. Interactions live in their own spec files. */
-import { emptyFeed, makeFeed } from '../support/feeds.ts';
-import { expect, test } from '../support/test.ts';
+import { emptyFeed, makeFeed } from '#e2e/support/feeds.ts';
+import { expect, test } from '#e2e/support/test.ts';
 
 test.describe('Today page', () => {
   test('the header shows the title, the update time, the views and a list of sections', async ({ reader, page }) => {
@@ -70,10 +70,9 @@ test.describe('Today page', () => {
     `);
   });
 
-  test('the page title comes from the settings', async ({ reader, page }) => {
+  test('the page title comes from the settings', async ({ reader }) => {
     await reader.open(makeFeed({ title: 'Morning Reads' }));
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Morning Reads');
-    await expect(page).toHaveTitle('Morning Reads');
+    await reader.expectPageTitle('Morning Reads');
   });
 
   test('sources that could not be fetched are listed', async ({ reader }) => {
@@ -95,13 +94,8 @@ test.describe('Today page', () => {
 test.describe('Japanese page', () => {
   test('the whole page is in Japanese', async ({ reader, page }) => {
     await reader.open(makeFeed({ language: 'ja' }));
-    await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
-    await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText([
-      '公式',
-      'Rust',
-      'そのほかの話題',
-      '新しいリポジトリ',
-    ]);
+    await reader.expectLanguage('ja');
+    await reader.expectSections(['公式', 'Rust', 'そのほかの話題', '新しいリポジトリ']);
     await expect(page.getByRole('button', { name: 'さらに2件' })).toBeVisible();
     await expect(page.getByRole('navigation', { name: '表示切り替え' })).toMatchAriaSnapshot(`
       - navigation:
@@ -119,9 +113,7 @@ test.describe('Layout', () => {
       await page.setViewportSize({ width, height: 800 });
       await reader.open(makeFeed());
       await expect(reader.story('Rust ownership explained')).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(
-        0,
-      );
+      await reader.expectNoSidewaysScroll();
     });
   }
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { detectLang, domainOf, isHttpUrl, mergeIntoStories, normalizeUrl } from '../src/normalize.ts';
-import type { RawItem } from '../src/types.ts';
+import { detectLang, domainOf, isHttpUrl, mergeIntoStories, normalizeUrl, sanitizeItem } from '#src/normalize.ts';
+import type { RawItem } from '#src/types.ts';
 
 describe('normalizeUrl', () => {
   it('drops www, trailing slashes, fragments and tracking parameters', () => {
@@ -74,31 +74,44 @@ describe('mergeIntoStories', () => {
     expect(stories[0]?.appearances.length).toBe(1);
     expect(stories[0]?.appearances[0]?.score).toBe(50);
   });
+});
 
-  it('drops items without a title or URL', () => {
-    expect(mergeIntoStories([item({ title: '' }), item({ url: '' })], () => 0.5).length).toBe(0);
+describe('sanitizeItem', () => {
+  const base: RawItem = {
+    source: 'hackernews',
+    title: 'ok',
+    url: 'https://example.com/a',
+    score: 1,
+    tags: [],
+    publishedAt: null,
+  };
+
+  it('drops items without a title or an http(s) link', () => {
+    expect(sanitizeItem({ ...base, title: '' })).toBeNull();
+    expect(sanitizeItem({ ...base, title: 123 as unknown as string })).toBeNull();
+    expect(sanitizeItem({ ...base, url: 'javascript:alert(1)' })).toBeNull();
+    expect(sanitizeItem({ ...base, url: 'not a url' })).toBeNull();
   });
 
-  it('ignores javascript: URLs and non-string titles', () => {
-    const base: RawItem = {
-      source: 'hackernews',
-      title: 'ok',
-      url: 'https://example.com/a',
-      score: 1,
-      tags: [],
-      publishedAt: null,
+  it('repairs what it can without changing the item it was given', () => {
+    const raw = {
+      ...base,
+      discussionUrl: 'javascript:alert(1)',
+      score: Number.NaN,
+      tags: ['ok', 7] as unknown as string[],
     };
-    const stories = mergeIntoStories(
-      [
-        { ...base, url: 'javascript:alert(1)' },
-        { ...base, title: 123 as unknown as string, url: 'https://example.com/b' },
-        { ...base, url: 'https://example.com/c', discussionUrl: 'javascript:alert(1)', score: Number.NaN },
-      ],
-      () => 0.5,
+    expect(sanitizeItem(raw)).toMatchObject({ discussionUrl: undefined, score: null, tags: ['ok'] });
+    expect(raw.score).toBeNaN();
+  });
+
+  it('treats missing tags as none', () => {
+    expect(sanitizeItem({ ...base, tags: undefined as unknown as string[] })?.tags).toEqual([]);
+  });
+
+  it('keeps a valid discussion link', () => {
+    expect(sanitizeItem({ ...base, discussionUrl: 'https://news.ycombinator.com/item?id=1' })?.discussionUrl).toBe(
+      'https://news.ycombinator.com/item?id=1',
     );
-    expect(stories.length).toBe(1);
-    expect(stories[0]?.appearances[0]?.discussionUrl).toBe(undefined);
-    expect(stories[0]?.appearances[0]?.score).toBe(null);
   });
 });
 
@@ -128,17 +141,6 @@ describe('edge cases', () => {
 
   it('has no domain for something that is not a URL', () => {
     expect(domainOf('not a url')).toBe('');
-  });
-
-  it('treats missing tags as none', () => {
-    const raw = {
-      source: 'hackernews',
-      title: 'A',
-      url: 'https://a.dev/a',
-      score: 1,
-      publishedAt: null,
-    } as unknown as RawItem;
-    expect(mergeIntoStories([raw], () => 0.5)[0]?.tags).toEqual([]);
   });
 
   it('keeps the earliest known publish date when merging', () => {

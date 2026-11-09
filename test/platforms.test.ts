@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchJson, fetchText } from '../src/http.ts';
+import { fetchJson, fetchText } from '#src/http.ts';
 import {
   fetchDevto,
   fetchGithubNewRepos,
@@ -9,11 +9,10 @@ import {
   fetchLobsters,
   fetchQiita,
   fetchZenn,
-  hatenaEntryUrl,
   TAG_FETCHERS,
-} from '../src/sources/platforms.ts';
+} from '#src/sources/platforms.ts';
 
-vi.mock('../src/http.ts', () => ({
+vi.mock('#src/http.ts', () => ({
   fetchJson: vi.fn(),
   fetchText: vi.fn(),
   githubHeaders: () => ({ Accept: 'application/vnd.github+json' }),
@@ -62,9 +61,12 @@ describe('fetchHatena', () => {
     ]);
   });
 
-  it('builds comment page URLs for https and http articles', () => {
-    expect(hatenaEntryUrl('https://a.dev/x')).toBe('https://b.hatena.ne.jp/entry/s/a.dev/x');
-    expect(hatenaEntryUrl('http://a.dev/x')).toBe('https://b.hatena.ne.jp/entry/a.dev/x');
+  it('links http articles to the comment page without the /s/ prefix', async () => {
+    vi.mocked(fetchText).mockResolvedValue(`<?xml version="1.0"?>
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/">
+        <item><title>B</title><link>http://b.dev/y</link></item>
+      </rdf:RDF>`);
+    expect((await fetchHatena())[0]?.discussionUrl).toBe('https://b.hatena.ne.jp/entry/b.dev/y');
   });
 });
 
@@ -100,7 +102,7 @@ describe('fetchQiita', () => {
 });
 
 describe('fetchDevto', () => {
-  it('copes with articles without tags', async () => {
+  it('treats a missing tag list as no tags', async () => {
     json.mockResolvedValue([
       { title: 'D', url: 'https://dev.to/d', public_reactions_count: 9, published_timestamp: 'p', tag_list: ['ai'] },
       { title: 'E', url: 'https://dev.to/e', public_reactions_count: 1, published_timestamp: 'p', tag_list: null },
@@ -108,6 +110,18 @@ describe('fetchDevto', () => {
     const [withTags, without] = await fetchDevto();
     expect(withTags?.tags).toEqual(['ai']);
     expect(without?.tags).toEqual([]);
+  });
+
+  it("leaves out dev.to's own challenges, chat threads and site news", async () => {
+    const post = (title: string, tags: string[]) => ({
+      title,
+      url: `https://dev.to/${title}`,
+      public_reactions_count: 50,
+      published_timestamp: 'p',
+      tag_list: tags,
+    });
+    json.mockResolvedValue([post('pets', ['watercooler']), post('news', ['meta']), post('rust', ['rust'])]);
+    expect((await fetchDevto()).map((a) => a.title)).toEqual(['rust']);
   });
 });
 
@@ -149,9 +163,7 @@ describe('fetchGithubNewRepos', () => {
       Accept: 'application/vnd.github+json',
     });
   });
-});
 
-describe('fetchGithubNewRepos spam filter', () => {
   it('drops repos with no description, a description that repeats the name, or a known lure', async () => {
     const base = { html_url: 'https://github.com/x/y', stargazers_count: 400, created_at: 'c' };
     json.mockResolvedValue({
@@ -165,20 +177,6 @@ describe('fetchGithubNewRepos spam filter', () => {
       ],
     });
     expect((await fetchGithubNewRepos(now)).map((r) => r.title)).toEqual(['x/real — A real project']);
-  });
-});
-
-describe('dev.to community threads', () => {
-  it("leaves out dev.to's own challenges, chat threads and site news", async () => {
-    const post = (title: string, tags: string[]) => ({
-      title,
-      url: `https://dev.to/${title}`,
-      public_reactions_count: 50,
-      published_timestamp: 'p',
-      tag_list: tags,
-    });
-    json.mockResolvedValue([post('pets', ['watercooler']), post('news', ['meta']), post('rust', ['rust'])]);
-    expect((await fetchDevto()).map((a) => a.title)).toEqual(['rust']);
   });
 });
 
@@ -216,6 +214,11 @@ describe('TAG_FETCHERS', () => {
       expect.stringContaining(encodeURIComponent('tag:Node.js created:>2026-11-04')),
       {},
     );
+  });
+
+  it('drops looked-up stories without a reaction count', async () => {
+    json.mockResolvedValue([{ title: 'D', url: 'https://dev.to/d', published_timestamp: 'p', tag_list: ['node'] }]);
+    expect(await TAG_FETCHERS.devto('node', now)).toEqual([]);
   });
 
   it("dev.to: asks for the tag's top posts of the last few days", async () => {

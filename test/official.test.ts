@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchJson, fetchText } from '../src/http.ts';
-import { classifyRelease, fetchGithubReleases, fetchOfficialFeed, releaseSummary } from '../src/sources/official.ts';
+import { fetchJson, fetchText } from '#src/http.ts';
+import { classifyRelease, fetchGithubReleases, fetchOfficialFeed, releaseSummary } from '#src/sources/official.ts';
 
-vi.mock('../src/http.ts', () => ({ fetchJson: vi.fn(), fetchText: vi.fn(), githubHeaders: () => ({}) }));
+vi.mock('#src/http.ts', () => ({ fetchJson: vi.fn(), fetchText: vi.fn(), githubHeaders: () => ({}) }));
 
 const rss = (channelTitle: string) => `<?xml version="1.0"?><rss version="2.0"><channel><title>${channelTitle}</title>
   <item><title>Post</title><link>https://blog.example.com/post</link><pubDate>Sun, 08 Nov 2026 00:00:00 GMT</pubDate>
@@ -31,7 +31,9 @@ describe('fetchOfficialFeed', () => {
 
   it("falls back to the feed's own title, cut to 40 characters, then to the host name", async () => {
     vi.mocked(fetchText).mockResolvedValue(rss('A'.repeat(50)));
-    expect((await fetchOfficialFeed(undefined, 'https://blog.example.com/feed'))[0]?.publisher).toBe('A'.repeat(40));
+    expect((await fetchOfficialFeed(undefined, 'https://blog.example.com/feed'))[0]?.publisher).toBe(
+      `${'A'.repeat(39)}…`,
+    );
     vi.mocked(fetchText).mockResolvedValue(rss(''));
     expect((await fetchOfficialFeed(undefined, 'https://blog.example.com/feed'))[0]?.publisher).toBe(
       'blog.example.com',

@@ -1,9 +1,9 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ConfigError, loadConfig, parseOfficial, parseTopics, resolveConfig } from '../src/config.ts';
-import { PRESET_NAMES } from '../src/presets.ts';
+import { ConfigError, loadConfig, parseOfficial, parseTopics, resolveConfig } from '#src/config.ts';
+import { PRESET_NAMES } from '#src/presets.ts';
+import { tempDir } from './support/temp-dir.ts';
 
 describe('resolveConfig', () => {
   it('defaults to the English preset', () => {
@@ -16,7 +16,7 @@ describe('resolveConfig', () => {
 
   it('picks Japanese sources and time zone for language: ja', () => {
     const c = resolveConfig({ language: 'ja' }, {});
-    expect(c.sources.includes('hatena') && c.sources.includes('zenn')).toBeTruthy();
+    expect(c.sources).toEqual(expect.arrayContaining(['hatena', 'zenn']));
     expect(c.timezone).toBe('Asia/Tokyo');
   });
 
@@ -110,7 +110,7 @@ describe('parseOfficial', () => {
 
 describe('loadConfig', () => {
   it('reads techcrema.yml when present and works without it', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'tc-config-'));
+    const dir = await tempDir('config');
     expect((await loadConfig({}, dir)).language).toBe('en');
     await writeFile(path.join(dir, 'techcrema.yml'), 'language: ja\ntopics:\n  neovim: [neovim]\n');
     const c = await loadConfig({ TC_TITLE: 'Hi' }, dir);
@@ -120,7 +120,7 @@ describe('loadConfig', () => {
   });
 
   it('fails when an explicitly named file is missing', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'tc-config-'));
+    const dir = await tempDir('config');
     await expect(loadConfig({ TECHCREMA_CONFIG: 'nope.yml' }, dir)).rejects.toThrow(/ENOENT/);
   });
 });
@@ -136,13 +136,13 @@ describe('topic presets', () => {
       {},
     );
     expect(c.presets).toEqual(['rust', 'ai']);
-    expect(c.topics.Rust?.keywords.includes('cargo')).toBeTruthy();
+    expect(c.topics.Rust?.keywords).toContain('cargo');
     expect(c.topics.AI).toEqual({ weight: 1, keywords: ['claude'], tags: ['ai'] });
     // The same feed URL from the preset and the user appears once, with the user's name
     expect(c.official.feeds.filter((f) => f.url === 'https://blog.rust-lang.org/feed.xml')).toEqual([
       { name: 'Rust', url: 'https://blog.rust-lang.org/feed.xml' },
     ]);
-    expect(c.official.releases.includes('rust-lang/rust') && c.official.releases.includes('my/repo')).toBeTruthy();
+    expect(c.official.releases).toEqual(expect.arrayContaining(['rust-lang/rust', 'my/repo']));
   });
 
   it('rejects unknown presets', () => {
@@ -152,8 +152,8 @@ describe('topic presets', () => {
   it('every preset is valid', () => {
     for (const name of PRESET_NAMES) {
       const c = resolveConfig({ presets: [name] }, {});
-      expect(Object.keys(c.topics).length > 0, name).toBeTruthy();
-      expect(c.official.feeds.length + c.official.releases.length > 0, name).toBeTruthy();
+      expect(Object.keys(c.topics), name).not.toHaveLength(0);
+      expect([...c.official.feeds, ...c.official.releases], name).not.toHaveLength(0);
     }
   });
 });
@@ -198,7 +198,7 @@ describe('validation of hand-written settings', () => {
   });
 
   it('an empty config file is fine, but its top level must be a mapping', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'tc-config-'));
+    const dir = await tempDir('config');
     await writeFile(path.join(dir, 'techcrema.yml'), '# nothing yet\n');
     expect((await loadConfig({}, dir)).language).toBe('en');
     await writeFile(path.join(dir, 'techcrema.yml'), '- language: ja\n');

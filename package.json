@@ -1,9 +1,13 @@
 {
   "name": "techcrema",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Your own daily tech front page: popular stories from Hacker News, Lobsters, dev.to and more, filtered to your interests, published to GitHub Pages by a GitHub Action",
   "type": "module",
+  "imports": {
+    "#src/*": "./src/*",
+    "#e2e/*": "./e2e/*"
+  },
   "engines": {
     "node": ">=24"
   },
@@ -27,7 +31,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",
     "@playwright/test": "^1.65.0",
-    "@types/node": "^26.6.6",
+    "@types/node": "^24.19.2",
     "@vitest/coverage-v8": "^5.1.0",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"

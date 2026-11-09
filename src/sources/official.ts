@@ -1,14 +1,26 @@
 /** Official sources (no popularity signal): blog RSS/Atom feeds and GitHub releases */
 
-import { parseFeed, parseFeedTitle } from '../feed-parser.ts';
-import { fetchJson, fetchText, githubHeaders } from '../http.ts';
-import { domainOf } from '../normalize.ts';
-import type { RawItem } from '../types.ts';
+import { parseFeed, parseFeedTitle } from '#src/feed-parser.ts';
+import { fetchJson, fetchText, githubHeaders } from '#src/http.ts';
+import { domainOf } from '#src/normalize.ts';
+import type { RawItem, ReleaseKind } from '#src/types.ts';
+import { repoName } from './platforms.ts';
+
+/** Cuts text to `max` characters (not UTF-16 units, so an emoji is never split), ending with "…" when cut */
+function truncate(text: string, max: number): string {
+  const chars = Array.from(text);
+  return chars.length > max
+    ? `${chars
+        .slice(0, max - 1)
+        .join('')
+        .trimEnd()}…`
+    : text;
+}
 
 /** name is optional; without it the feed's own title (or the host name) is used */
 export async function fetchOfficialFeed(name: string | undefined, url: string): Promise<RawItem[]> {
   const xml = await fetchText(url);
-  const publisher = name || parseFeedTitle(xml).slice(0, 40) || domainOf(url);
+  const publisher = name || truncate(parseFeedTitle(xml), 40) || domainOf(url);
   return parseFeed(xml).map((e) => ({
     source: 'official',
     title: e.title,
@@ -49,13 +61,13 @@ export function releaseSummary(body: string | null | undefined): string | undefi
       .replace(/[`*_]/g, '')
       .trim();
     if (!text || (heading && GENERIC_HEADING.test(text))) continue;
-    return text.length > SUMMARY_LENGTH ? `${text.slice(0, SUMMARY_LENGTH - 1).trimEnd()}…` : text;
+    return truncate(text, SUMMARY_LENGTH);
   }
   return undefined;
 }
 
 /** Classifies a release from tags like v1.2.3, 1.2.3 or nvim-0.11.0 */
-export function classifyRelease(tag: string): RawItem['releaseKind'] {
+export function classifyRelease(tag: string): ReleaseKind {
   const m = tag.match(/(\d+)\.(\d+)(?:\.(\d+))?/);
   if (!m) return 'other';
   const minor = Number(m[2]);
@@ -76,7 +88,7 @@ export async function fetchGithubReleases(repo: string): Promise<RawItem[]> {
       .filter((r) => !r.draft && !r.prerelease && /\d/.test(r.tag_name))
       .map((r) => {
         const summary = releaseSummary(r.body);
-        const name = `${repo.split('/')[1]} ${r.name?.trim() || r.tag_name}`;
+        const name = `${repoName(repo)} ${r.name?.trim() || r.tag_name}`;
         return {
           source: 'github_release',
           // A version number alone says nothing about the release, so the title carries its first point

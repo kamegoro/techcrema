@@ -21,8 +21,6 @@ export const PLATFORMS = [
 ] as const;
 export type PlatformId = (typeof PLATFORMS)[number];
 
-export type { Topic };
-
 export interface Config {
   language: Language;
   presets: PresetName[];
@@ -48,7 +46,7 @@ const BASE_LAYOUT: LayoutConfig = {
 /** Layout settings from v1.0 that no longer exist; still accepted so older config files keep working */
 const RETIRED_LAYOUT_KEYS = new Set(['for_you', 'for_you_min_local', 'discover']);
 
-export const LANGUAGE_DEFAULTS: Record<Language, Config> = {
+const LANGUAGE_DEFAULTS: Record<Language, Config> = {
   en: {
     language: 'en',
     presets: [],
@@ -78,7 +76,7 @@ export class ConfigError extends Error {}
 // Parsing helpers. Inputs come from people's YAML and workflow files, so every
 // value is checked and errors say exactly which setting is wrong.
 /** "a, b\nc" or ["a", "b"] → ["a", "b", "c"] */
-export function list(value: unknown, field: string): string[] {
+function list(value: unknown, field: string): string[] {
   if (value === undefined || value === null || value === '') return [];
   const items = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[,\n]/) : null;
   if (!items) throw new ConfigError(`${field}: expected a list or a comma-separated string`);
@@ -99,7 +97,7 @@ function parseLanguage(value: unknown): Language {
   return v as Language;
 }
 
-export function parseSources(value: unknown): PlatformId[] {
+function parseSources(value: unknown): PlatformId[] {
   const ids = list(value, 'sources').map((s) => s.toLowerCase());
   for (const id of ids) {
     if (!(PLATFORMS as readonly string[]).includes(id)) {
@@ -110,7 +108,7 @@ export function parseSources(value: unknown): PlatformId[] {
 }
 
 /** A topic is looked up by its own name as a tag ("Node.js" → nodejs), unless the name has spaces or non-ASCII */
-export function defaultTags(name: string): string[] {
+function defaultTags(name: string): string[] {
   return /^[\x21-\x7e]+$/.test(name) ? [name.toLowerCase()] : [];
 }
 
@@ -185,7 +183,7 @@ export function parseOfficial(value: unknown): Config['official'] {
   return result;
 }
 
-export function parsePresets(value: unknown): PresetName[] {
+function parsePresets(value: unknown): PresetName[] {
   const names = list(value, 'presets').map((s) => s.toLowerCase());
   for (const name of names) {
     if (!(PRESET_NAMES as string[]).includes(name)) {
@@ -238,8 +236,11 @@ export function resolveConfig(file: ConfigSource, inputs: ConfigSource): Config 
 
   const language = parseLanguage(pick('language') ?? 'en');
   const defaults = LANGUAGE_DEFAULTS[language];
-  const fileMute = (file.mute ?? {}) as { keywords?: unknown; domains?: unknown };
-  if (typeof fileMute !== 'object') throw new ConfigError('mute: expected { keywords: [...], domains: [...] }');
+  const rawMute = file.mute ?? {};
+  if (typeof rawMute !== 'object' || rawMute === null || Array.isArray(rawMute)) {
+    throw new ConfigError('mute: expected { keywords: [...], domains: [...] }');
+  }
+  const fileMute: { keywords?: unknown; domains?: unknown } = rawMute;
 
   const presets = parsePresets(pick('presets'));
   const title = pick('title');
@@ -273,7 +274,7 @@ export function resolveConfig(file: ConfigSource, inputs: ConfigSource): Config 
 }
 
 /** Action inputs arrive as environment variables set in action.yml. */
-export function inputsFromEnv(env: NodeJS.ProcessEnv): ConfigSource {
+function inputsFromEnv(env: NodeJS.ProcessEnv): ConfigSource {
   return {
     language: env.TC_LANGUAGE,
     presets: env.TC_PRESETS,

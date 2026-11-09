@@ -1,9 +1,6 @@
 /** fetch → merge by URL → popularity & interest → sections → feed.json */
 import { appendFile } from 'node:fs/promises';
-import { type Config, loadConfig, type PlatformId } from './config.ts';
-import { mergeIntoStories } from './normalize.ts';
-import { buildSections, isMuted, percentile, popularity, scoreInterest } from './rank.ts';
-import { fetchGithubReleases, fetchOfficialFeed } from './sources/official.ts';
+import { fetchGithubReleases, fetchOfficialFeed } from '#src/sources/official.ts';
 import {
   fetchDevto,
   fetchGithubNewRepos,
@@ -15,9 +12,14 @@ import {
   fetchZenn,
   TAG_FETCHERS,
   type TagPlatform,
-} from './sources/platforms.ts';
-import { dataDir, loadScoreWindow, loadSeen, localDate, saveFeed, saveScoreSnapshot, saveSeen } from './store.ts';
-import type { Feed, RawItem, Section } from './types.ts';
+} from '#src/sources/platforms.ts';
+import type { Log } from './cli.ts';
+import { type Config, loadConfig, type PlatformId } from './config.ts';
+import { localDate } from './dates.ts';
+import { mergeIntoStories, sanitizeItem } from './normalize.ts';
+import { buildSections, interestScorer, muteFilter, percentile, popularity } from './rank.ts';
+import { feedPath, loadScoreWindow, loadSeen, saveFeed, saveScoreSnapshot, saveSeen } from './store.ts';
+import type { Feed, RawItem, Section, Story } from './types.ts';
 
 /** Extra stories per section, behind "Show more" and for refilling slots freed by mutes in the browser */
 const SPARE_PER_SECTION = 10;
@@ -69,11 +71,20 @@ function buildJobs(config: Config, now: Date): Job[] {
   ];
 }
 
+/** How many stories a section shows before "Show more" */
+const shownCount = (s: Section) => Math.min(s.limit, s.stories.length);
+const sectionLabel = (s: Section) => s.title ?? s.id;
+
+/** Ranking details the page doesn't use stay out of the published feed */
+function forPage({ titleMatch, lookups, ...story }: Story): Story {
+  return story;
+}
+
 export async function collect(
   config: Config,
-  log: (msg: string) => void = () => undefined,
-  counts: Record<string, number> = {},
-): Promise<Feed> {
+  log: Log = () => undefined,
+): Promise<{ feed: Feed; counts: Record<string, number> }> {
+  const counts: Record<string, number> = {};
   const now = new Date();
   const today = localDate(now);
   const [seen, history] = await Promise.all([loadSeen(today), loadScoreWindow(today)]);
@@ -83,7 +94,7 @@ export async function collect(
   const results = await Promise.all(
     buildJobs(config, now).map(async (job) => {
       try {
-        const items = await job.run();
+        const items = (await job.run()).flatMap((item) => sanitizeItem(item) ?? []);
         counts[job.label] = items.length;
         log(`  ✓ ${job.label}: ${items.length}`);
         return { items, calibrates: job.calibrates };
@@ -99,7 +110,10 @@ export async function collect(
 
   const windows = new Map<string, number[]>();
   for (const item of results.filter((r) => r.calibrates).flatMap((r) => r.items)) {
-    if (item.score !== null) windows.set(item.source, [...(windows.get(item.source) ?? []), item.score]);
+    if (item.score === null) continue;
+    const scores = windows.get(item.source);
+    if (scores) scores.push(item.score);
+    else windows.set(item.source, [item.score]);
   }
   await saveScoreSnapshot(today, Object.fromEntries(windows));
   for (const [source, scores] of Object.entries(history)) {
@@ -107,11 +121,13 @@ export async function collect(
   }
 
   // Mutes added on the page live in the browser and are applied there
+  const interestOf = interestScorer(config);
+  const isMuted = muteFilter(config.mute);
   const stories = mergeIntoStories(items, (item) =>
     item.score === null ? null : percentile(item.score, windows.get(item.source)),
   )
-    .map((s) => ({ ...s, pop: popularity(s), ...scoreInterest(s, config) }))
-    .filter((s) => !isMuted(s, config.mute));
+    .map((s) => ({ ...s, pop: popularity(s), ...interestOf(s) }))
+    .filter((s) => !isMuted(s));
 
   const sections = buildSections({
     stories,
@@ -138,11 +154,11 @@ export async function collect(
     language: config.language,
     title: config.title,
     officialDays: config.layout.official_days,
-    sections,
+    sections: sections.map((s) => ({ ...s, stories: s.stories.map(forPage) })),
     errors,
   };
   await saveFeed(feed);
-  return feed;
+  return { feed, counts };
 }
 
 /** Text from a source's error message, safe inside a Markdown table cell */
@@ -150,7 +166,6 @@ const tableCell = (text: string) => text.replace(/\\/g, '\\\\').replace(/\|/g, '
 
 /** Markdown for the Actions run page: what each section got and what was fetched */
 export function summarize(config: Config, feed: Feed, counts: Record<string, number>): string {
-  const shown = (s: Section) => Math.min(s.limit, s.stories.length);
   const lines = [
     `## ☕ TechCrema — ${feed.date}`,
     '',
@@ -158,7 +173,7 @@ export function summarize(config: Config, feed: Feed, counts: Record<string, num
     '',
     '| Section | Shown | More |',
     '|---|---:|---:|',
-    ...feed.sections.map((s) => `| ${s.title ?? s.id} | ${shown(s)} | ${s.stories.length - shown(s)} |`),
+    ...feed.sections.map((s) => `| ${sectionLabel(s)} | ${shownCount(s)} | ${s.stories.length - shownCount(s)} |`),
     '',
     '| Source | Items |',
     '|---|---:|',
@@ -178,20 +193,17 @@ export function summarize(config: Config, feed: Feed, counts: Record<string, num
 }
 
 /** The `collect` command. Returns the exit code. */
-export async function runCollect(env: NodeJS.ProcessEnv, log: (message: string) => void): Promise<number> {
+export async function runCollect(env: NodeJS.ProcessEnv, log: Log): Promise<number> {
   const config = await loadConfig(env);
-  // "Today" follows the configured time zone, not the machine's
-  env.TZ = config.timezone;
+  // "Today" follows the configured time zone, not the machine's (Date reads it from the process)
+  process.env.TZ = config.timezone;
   const topics = Object.keys(config.topics);
   log(`Collecting (${config.language}, ${config.timezone}; topics: ${topics.join(', ') || 'none'})…`);
-  const counts: Record<string, number> = {};
-  const feed = await collect(config, log, counts);
+  const { feed, counts } = await collect(config, log);
   if (env.GITHUB_STEP_SUMMARY) await appendFile(env.GITHUB_STEP_SUMMARY, summarize(config, feed, counts));
-  log(`\n${feed.date}: wrote ${dataDir()}/feed.json`);
-  for (const s of feed.sections) {
-    const shown = Math.min(s.limit, s.stories.length);
-    log(`  ${s.title ?? s.id}: ${shown} (+${s.stories.length - shown} more)`);
-  }
+  log(`\n${feed.date}: wrote ${feedPath()}`);
+  for (const s of feed.sections)
+    log(`  ${sectionLabel(s)}: ${shownCount(s)} (+${s.stories.length - shownCount(s)} more)`);
   if (feed.errors.length) log(`  failed: ${feed.errors.map((e) => e.source).join(', ')}`);
   if (topics.length === 0) log('\nTip: add `topics` or `presets` to get a section for each of your interests.');
   // The scheduled smoke test sets this to fail loudly when a source breaks

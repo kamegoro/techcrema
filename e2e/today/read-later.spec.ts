@@ -1,6 +1,6 @@
 /** Saving stories to read later */
-import { makeFeed } from '../support/feeds.ts';
-import { test } from '../support/test.ts';
+import { makeFeed } from '#e2e/support/feeds.ts';
+import { test } from '#e2e/support/test.ts';
 
 test.describe('Read later', () => {
   test('a saved story is in the Later tab, and the tab shows how many', async ({ reader }) => {

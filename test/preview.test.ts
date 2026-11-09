@@ -1,15 +1,15 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import type { Server } from 'node:http';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { resolveRequest, startStaticServer } from '../src/preview.ts';
+import { resolveRequest, startStaticServer } from '#src/preview.ts';
+import { tempDir } from './support/temp-dir.ts';
 
 let root: string;
 let server: Server | undefined;
 
 beforeEach(async () => {
-  root = await mkdtemp(path.join(tmpdir(), 'tc-preview-'));
+  root = await tempDir('preview');
   await mkdir(path.join(root, 'sub'));
   await writeFile(path.join(root, 'index.html'), '<h1>home</h1>');
   await writeFile(path.join(root, 'feed.json'), '{}');

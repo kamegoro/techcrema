@@ -1,15 +1,15 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { collect, runCollect, summarize } from '../src/collect.ts';
-import { resolveConfig } from '../src/config.ts';
-import { fetchGithubReleases, fetchOfficialFeed } from '../src/sources/official.ts';
-import { fetchHackerNews, fetchLobsters, TAG_FETCHERS } from '../src/sources/platforms.ts';
-import { loadFeed, loadScoreWindow, loadSeen, saveScoreSnapshot, saveSeen } from '../src/store.ts';
-import type { Feed, RawItem, Story } from '../src/types.ts';
+import { collect, runCollect, summarize } from '#src/collect.ts';
+import { resolveConfig } from '#src/config.ts';
+import { fetchGithubReleases, fetchOfficialFeed } from '#src/sources/official.ts';
+import { fetchHackerNews, fetchLobsters, TAG_FETCHERS } from '#src/sources/platforms.ts';
+import { loadFeed, loadScoreWindow, loadSeen, saveScoreSnapshot, saveSeen } from '#src/store.ts';
+import type { Feed, RawItem, Story } from '#src/types.ts';
+import { tempDir } from './support/temp-dir.ts';
 
-vi.mock('../src/sources/platforms.ts', () => {
+vi.mock('#src/sources/platforms.ts', () => {
   const none = vi.fn(async () => []);
   return {
     fetchHackerNews: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('../src/sources/platforms.ts', () => {
     TAG_FETCHERS: { zenn: none, qiita: none, devto: none, lobsters: vi.fn() },
   };
 });
-vi.mock('../src/sources/official.ts', () => ({ fetchOfficialFeed: vi.fn(), fetchGithubReleases: vi.fn() }));
+vi.mock('#src/sources/official.ts', () => ({ fetchOfficialFeed: vi.fn(), fetchGithubReleases: vi.fn() }));
 
 const NOW = new Date('2026-11-08T09:00:00Z');
 const TODAY = '2026-11-08';
@@ -41,7 +41,7 @@ const item = (over: Partial<RawItem>): RawItem => ({
 let tmp: string;
 
 beforeEach(async () => {
-  tmp = await mkdtemp(path.join(tmpdir(), 'tc-collect-'));
+  tmp = await tempDir('collect');
   vi.stubEnv('TECHCREMA_DATA_DIR', path.join(tmp, 'data'));
   vi.stubEnv('TZ', 'UTC');
   vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
@@ -78,9 +78,11 @@ describe('collect', () => {
     );
 
   it('fetches every source, keeps going past failures and reports them', async () => {
-    const counts: Record<string, number> = {};
+    const listed = await fetchHackerNews();
+    // An item without a usable link is dropped before it is counted
+    vi.mocked(fetchHackerNews).mockResolvedValue([...listed, item({ url: 'javascript:alert(1)' })]);
     const log = vi.fn();
-    const feed = await collect(config(), log, counts);
+    const { feed, counts } = await collect(config(), log);
     expect(counts).toEqual({ hackernews: 2, 'lobsters #rust': 1, 'https://nodejs.org/feed.xml': 1, 'Node.js': 1 });
     expect(feed.errors).toEqual([
       { source: 'lobsters', message: 'HTTP 503' },
@@ -90,13 +92,15 @@ describe('collect', () => {
   });
 
   it('ranks, applies mutes from the settings and writes the feed', async () => {
-    const feed = await collect(config());
+    const { feed } = await collect(config());
     const byId = Object.fromEntries(feed.sections.map((s) => [s.title ?? s.id, s.stories.map((st) => st.title)]));
     expect(byId.rust).toEqual(['Rust 2.0 released', 'Borrow checker notes']);
     expect(byId.official).toEqual(['Node.js 26.1']);
     expect(JSON.stringify(feed)).not.toContain('Something else');
     expect(feed).toMatchObject({ date: TODAY, language: 'en', title: 'TechCrema', officialDays: 3 });
     expect(await loadFeed()).toEqual(feed);
+    // Ranking details stay out of the published feed
+    expect(JSON.stringify(feed)).not.toMatch(/titleMatch|lookups/);
   });
 
   it("saves today's scores and compares them with earlier days", async () => {
@@ -104,7 +108,7 @@ describe('collect', () => {
     const listed = await fetchHackerNews();
     // A story without a score (e.g. a Hatena entry missing its count) stays out of the scale
     vi.mocked(fetchHackerNews).mockResolvedValue([...listed, item({ url: 'https://d.dev/unscored', score: null })]);
-    const feed = await collect(config());
+    const { feed } = await collect(config());
     const rust = feed.sections.flatMap((s) => s.stories).find((s) => s.title === 'Rust 2.0 released');
     // 500 among [1000, 2000, 500, 50]: one lower, itself counted half → (1 + 0.5) / 4
     expect(rust?.appearances[0]?.percentile).toBe(0.375);
@@ -138,7 +142,7 @@ describe('runCollect', () => {
     const log = vi.fn();
     const e = env();
     expect(await runCollect(e, log)).toBe(0);
-    expect(e.TZ).toBe('Asia/Tokyo');
+    expect(process.env.TZ).toBe('Asia/Tokyo');
     expect(log).toHaveBeenCalledWith('Collecting (en, Asia/Tokyo; topics: none)…');
     expect(log).toHaveBeenCalledWith('  failed: lobsters');
     expect(log).toHaveBeenCalledWith(expect.stringContaining('Tip: add `topics`'));

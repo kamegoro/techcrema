@@ -57,17 +57,27 @@ export function detectLang(title: string): Story['lang'] {
 }
 
 /**
+ * Checks an item from outside (an API or feed) before anything uses it: types aren't trusted.
+ * Returns null for items without a title or an http(s) link; repairs the rest.
+ */
+export function sanitizeItem(item: RawItem): RawItem | null {
+  if (typeof item.title !== 'string' || !item.title.trim() || !isHttpUrl(item.url)) return null;
+  return {
+    ...item,
+    tags: Array.isArray(item.tags) ? item.tags.filter((t): t is string => typeof t === 'string') : [],
+    score: typeof item.score === 'number' && Number.isFinite(item.score) ? item.score : null,
+    discussionUrl: isHttpUrl(item.discussionUrl) ? item.discussionUrl : undefined,
+  };
+}
+
+/**
  * Merges items with the same URL into one Story.
- * percentileOf maps an item to its percentile within its platform (null for official sources).
+ * Expects items checked by sanitizeItem. percentileOf maps an item to its percentile within its platform
+ * (null for official sources).
  */
 export function mergeIntoStories(items: RawItem[], percentileOf: (item: RawItem) => number | null): Story[] {
   const byKey = new Map<string, Story>();
   for (const item of items) {
-    // Don't trust types from outside APIs: drop non-string titles and non-http(s) URLs
-    if (typeof item.title !== 'string' || !item.title.trim() || !isHttpUrl(item.url)) continue;
-    item.tags = Array.isArray(item.tags) ? item.tags.filter((t): t is string => typeof t === 'string') : [];
-    if (typeof item.score !== 'number' || !Number.isFinite(item.score)) item.score = null;
-    if (item.discussionUrl !== undefined && !isHttpUrl(item.discussionUrl)) item.discussionUrl = undefined;
     const key = normalizeUrl(item.url);
     const appearance: Appearance = {
       source: item.source,

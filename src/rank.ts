@@ -2,8 +2,8 @@
  * Ranking. Popularity is a percentile within each platform, so 300 HN points and 300 Hatena bookmarks
  * land on the same scale. Popularity and interest are never blended into one score; sections combine them.
  */
-import { shiftDate } from './store.ts';
-import type { InterestConfig, LayoutConfig, Section, SourceId, Story } from './types.ts';
+import { shiftDate } from './dates.ts';
+import type { InterestConfig, LayoutConfig, Section, SeenEntry, SourceId, Story } from './types.ts';
 
 /**
  * Where `score` sits within `window`, from 0 to 1. Ties count half (midrank).
@@ -28,10 +28,9 @@ const MULTI_PLATFORM_BONUS = 0.05;
 
 /** Highest percentile across platforms, plus a bonus for each extra platform */
 export function popularity(story: Pick<Story, 'appearances'>): number {
-  const ranked = story.appearances.filter((a) => a.percentile !== null);
-  if (ranked.length === 0) return 0;
-  const best = Math.max(...ranked.map((a) => a.percentile as number));
-  return Math.min(1, best + MULTI_PLATFORM_BONUS * (ranked.length - 1));
+  const percentiles = story.appearances.flatMap((a) => a.percentile ?? []);
+  if (percentiles.length === 0) return 0;
+  return Math.min(1, Math.max(...percentiles) + MULTI_PLATFORM_BONUS * (percentiles.length - 1));
 }
 
 function escapeRegExp(s: string): string {
@@ -53,7 +52,7 @@ function storyText(story: Pick<Story, 'title' | 'tags'>): string {
   return `${story.title} ${story.tags.join(' ')}`;
 }
 
-export interface InterestResult {
+interface InterestResult {
   interest: number;
   topics: string[];
   matchedKeywords: string[];
@@ -64,44 +63,55 @@ export interface InterestResult {
 const tagKey = (tag: string) => tag.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 
 /**
+ * Scores stories against the topics, with every keyword compiled once.
  * A story belongs to a topic when a keyword is in its title or tags, or a tag lookup found it.
  * Tags that came with a front-page story don't count on their own: sites and readers tag loosely
  * (dev.to and Hatena put "ai" on nearly anything that mentions it).
  */
-export function scoreInterest(
-  story: Pick<Story, 'title' | 'tags' | 'lookups'>,
+export function interestScorer(
   config: InterestConfig,
-): InterestResult {
-  const text = storyText(story);
-  const lookups = new Set((story.lookups ?? []).map(tagKey));
-  const matched: { name: string; weight: number; inTitle: boolean }[] = [];
-  const matchedKeywords: string[] = [];
-  for (const [name, topic] of Object.entries(config.topics)) {
-    const hits = topic.keywords.filter((k) => keywordMatcher(k)(text));
-    if (hits.length === 0 && !topic.tags.some((t) => lookups.has(tagKey(t)))) continue;
-    matched.push({ name, weight: topic.weight, inTitle: hits.some((k) => keywordMatcher(k)(story.title)) });
-    matchedKeywords.push(...hits);
-  }
-  // Stable sort: equal weights keep the configured order
-  matched.sort((a, b) => b.weight - a.weight);
-  return {
-    interest: matched[0]?.weight ?? 0,
-    topics: matched.map((m) => m.name),
-    matchedKeywords: [...new Set(matchedKeywords)],
-    titleMatch: matched[0]?.inTitle ?? false,
+): (story: Pick<Story, 'title' | 'tags' | 'lookups'>) => InterestResult {
+  const topics = Object.entries(config.topics).map(([name, topic]) => ({
+    name,
+    weight: topic.weight,
+    keywords: topic.keywords.map((keyword) => ({ keyword, matches: keywordMatcher(keyword) })),
+    tags: topic.tags.map(tagKey),
+  }));
+  return (story) => {
+    const text = storyText(story);
+    const lookups = new Set((story.lookups ?? []).map(tagKey));
+    const matched: { name: string; weight: number; inTitle: boolean }[] = [];
+    const matchedKeywords: string[] = [];
+    for (const topic of topics) {
+      const hits = topic.keywords.filter((k) => k.matches(text));
+      if (hits.length === 0 && !topic.tags.some((t) => lookups.has(t))) continue;
+      matched.push({ name: topic.name, weight: topic.weight, inTitle: hits.some((k) => k.matches(story.title)) });
+      matchedKeywords.push(...hits.map((k) => k.keyword));
+    }
+    // Stable sort: equal weights keep the configured order
+    matched.sort((x, y) => y.weight - x.weight);
+    return {
+      interest: matched[0]?.weight ?? 0,
+      topics: matched.map((m) => m.name),
+      matchedKeywords: [...new Set(matchedKeywords)],
+      titleMatch: matched[0]?.inTitle ?? false,
+    };
   };
 }
 
-export function isMuted(
-  story: Pick<Story, 'title' | 'tags' | 'domain'>,
-  mute: { keywords: string[]; domains: string[] },
-): boolean {
-  const domain = story.domain.toLowerCase();
-  if (mute.domains.some((d) => domain === d.toLowerCase() || domain.endsWith(`.${d.toLowerCase()}`))) {
-    return true;
-  }
-  const text = storyText(story);
-  return mute.keywords.some((k) => keywordMatcher(k)(text));
+/** Tells whether a story is muted by site (subdomains included) or keyword, with every keyword compiled once */
+export function muteFilter(mute: {
+  keywords: string[];
+  domains: string[];
+}): (story: Pick<Story, 'title' | 'tags' | 'domain'>) => boolean {
+  const domains = mute.domains.map((d) => d.toLowerCase());
+  const keywords = mute.keywords.map(keywordMatcher);
+  return (story) => {
+    const domain = story.domain.toLowerCase();
+    if (domains.some((d) => domain === d || domain.endsWith(`.${d}`))) return true;
+    const text = storyText(story);
+    return keywords.some((matches) => matches(text));
+  };
 }
 
 const OFFICIAL_SOURCES: ReadonlySet<SourceId> = new Set(['official', 'github_release']);
@@ -114,12 +124,7 @@ const QUIET_TOPIC_DAYS = 14;
 /** Outside your topics, only the top 10% of each platform can make it onto the page */
 const TRENDING_MIN_POP = 0.9;
 
-export interface SeenEntry {
-  date: string;
-  pop: number;
-}
-
-export interface BuildInput {
+interface BuildInput {
   stories: Story[];
   layout: LayoutConfig;
   today: string;
@@ -129,11 +134,8 @@ export interface BuildInput {
   /** Topic names in the configured order, one section each */
   topics: string[];
   seen: Record<string, SeenEntry>;
-  /**
-   * Spare stories added to each section beyond its limit.
-   * Mutes are applied in the browser, which refills muted slots from these spares.
-   */
-  spare?: number;
+  /** Stories added to each section beyond its limit, for "Show more" and for refilling slots muted in the browser */
+  spare: number;
 }
 
 /** The platform where the story ranks highest (used to cap any one platform's share of a section) */
@@ -196,12 +198,14 @@ export function pickWithCaps(ranked: readonly Story[], limit: number, maxRatio: 
 /** Official section: keep the newest item per publisher and count the rest ("+N more") */
 export function groupOfficial(stories: readonly Story[]): Story[] {
   const sorted = [...stories].sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''));
-  const byPublisher = new Map<string, Story[]>();
+  const byPublisher = new Map<string, { newest: Story; count: number }>();
   for (const s of sorted) {
     const key = s.publisher ?? s.domain;
-    byPublisher.set(key, [...(byPublisher.get(key) ?? []), s]);
+    const group = byPublisher.get(key);
+    if (group) group.count++;
+    else byPublisher.set(key, { newest: s, count: 1 });
   }
-  return [...byPublisher.values()].map(([newest, ...rest]) => ({ ...(newest as Story), groupedCount: rest.length }));
+  return [...byPublisher.values()].map(({ newest, count }) => ({ ...newest, groupedCount: count - 1 }));
 }
 
 /** Picks `limit` stories, then `spare` more from the rest by the same rules, appended after them */
@@ -223,8 +227,7 @@ function pickWithSpare(
 }
 
 export function buildSections(input: BuildInput): Section[] {
-  const { layout, today, now, seen, language } = input;
-  const spare = input.spare ?? 0;
+  const { layout, today, now, seen, language, spare } = input;
 
   // A story stays for the day it was first shown and the next (so a day without opening the page loses nothing),
   // then hides, unless its popularity jumped: then it comes back once, marked resurfaced.

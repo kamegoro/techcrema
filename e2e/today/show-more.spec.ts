@@ -1,6 +1,6 @@
 /** A topic shows its best stories first and keeps the rest one tap away */
-import { makeFeed } from '../support/feeds.ts';
-import { test } from '../support/test.ts';
+import { makeFeed } from '#e2e/support/feeds.ts';
+import { test } from '#e2e/support/test.ts';
 
 test.describe('Show more', () => {
   test('shows the rest of a topic', async ({ reader }) => {

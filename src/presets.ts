@@ -1,7 +1,7 @@
 /** Ready-made interests. The weekly smoke test (.github/smoke.yml) checks every feed listed here. */
-import type { Topic } from './config.ts';
+import type { Topic } from './types.ts';
 
-export interface Preset {
+interface Preset {
   description: string;
   topics: Record<string, Topic>;
   /** Same format as the `official` option: "Name https://feed" or "owner/repo" */
@@ -88,7 +88,7 @@ export const PRESETS_BY_NAME = {
   ai: {
     description: 'LLMs, agents and machine learning',
     topics: {
-      // Not plain "ai": dev.to tags nearly every post with it, which would flood "For you"
+      // Not plain "ai": dev.to tags nearly every post with it, which would flood the AI section
       AI: topic(
         [
           'llm',

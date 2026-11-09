@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasDtd, parseFeed, parseFeedTitle } from '../src/feed-parser.ts';
+import { hasDtd, parseFeed, parseFeedTitle } from '#src/feed-parser.ts';
 
 describe('parseFeed', () => {
   it('reads Hatena RSS 1.0: escaped Japanese text, bookmark counts and tags', () => {

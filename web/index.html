@@ -33,12 +33,10 @@
           <h1 class="brand-title">TechCrema</h1>
           <p class="brand-meta" id="meta" aria-live="polite"></p>
         </div>
-        <div class="header-actions">
-          <button class="icon-button" id="theme" type="button" aria-pressed="false" data-i18n-label="theme.toggle" aria-label="Dark mode" title="Dark mode">
+        <button class="icon-button" id="theme" type="button" aria-pressed="false" data-i18n-label="theme.toggle" aria-label="Dark mode" title="Dark mode">
             <svg class="theme-icon theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>
             <svg class="theme-icon theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
-          </button>
-        </div>
+        </button>
       </div>
       <nav class="tabs" aria-label="Views" data-i18n-aria="tabs">
         <a class="tab" href="#today" data-tab="today" data-i18n="tab.today">Today<span class="tab-count" id="count-today"></span></a>
@@ -54,7 +52,7 @@
     <main id="main" class="content" tabindex="-1"></main>
 
     <dialog class="sheet" id="mute-sheet" aria-labelledby="mute-title">
-      <form method="dialog" class="sheet-body" id="mute-form">
+      <form method="dialog" class="sheet-body">
         <h2 class="sheet-title" id="mute-title" data-i18n="mute.title">What do you want to mute?</h2>
         <p class="sheet-subtitle" id="mute-story"></p>
         <fieldset class="mute-options" id="mute-options"></fieldset>
@@ -64,7 +62,7 @@
         </label>
         <div class="sheet-actions">
           <button class="button" value="cancel" type="submit" formnovalidate data-i18n="mute.cancel">Cancel</button>
-          <button class="button button-primary" value="mute" type="submit" id="mute-submit" data-i18n="mute.submit">Mute</button>
+          <button class="button button-primary" value="mute" type="submit" data-i18n="mute.submit">Mute</button>
         </div>
       </form>
     </dialog>

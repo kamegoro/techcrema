@@ -14,8 +14,8 @@ const SOURCE_LABELS = {
   github_release: 'Release',
 };
 const STATE_KEY = 'techcrema-state-v1';
-/** Keep at most this many read marks (oldest dropped first) so localStorage doesn't fill up */
-const MAX_KEYS = 3000;
+// Caps (oldest dropped first) so localStorage doesn't fill up
+const MAX_READ = 3000;
 const MAX_LATER = 300;
 
 const ICONS = {
@@ -24,7 +24,6 @@ const ICONS = {
   comment: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
 };
 
-/** @type {{feed: any, state: {read: string[], later: any[], mute: {keywords: string[], domains: string[]}}}} */
 const data = { feed: null, state: loadState() };
 let loadError = null;
 /** Sections opened with "Show more" (until the page is reloaded) */
@@ -93,7 +92,11 @@ function loadState() {
     return {
       read: strings(raw.read),
       later: Array.isArray(raw.later)
-        ? raw.later.filter((x) => x && typeof x.key === 'string' && typeof x.title === 'string')
+        ? raw.later
+            .filter(
+              (x) => x && typeof x.key === 'string' && typeof x.title === 'string' && Array.isArray(x.appearances),
+            )
+            .map((x) => ({ ...x, tags: strings(x.tags), matchedKeywords: strings(x.matchedKeywords) }))
         : [],
       mute: { keywords: strings(raw.mute?.keywords), domains: strings(raw.mute?.domains) },
     };
@@ -104,7 +107,7 @@ function loadState() {
 
 function saveState() {
   const s = data.state;
-  s.read = s.read.slice(-MAX_KEYS);
+  s.read = s.read.slice(-MAX_READ);
   s.later = s.later.slice(0, MAX_LATER);
   try {
     localStorage.setItem(STATE_KEY, JSON.stringify(s));
@@ -124,11 +127,16 @@ function keywordMatcher(keyword) {
   return (text) => text.toLowerCase().includes(k);
 }
 
-function isMuted(story, mute) {
-  const domain = (story.domain ?? '').toLowerCase();
-  if (mute.domains.some((d) => domain === d.toLowerCase() || domain.endsWith(`.${d.toLowerCase()}`))) return true;
-  const text = `${story.title} ${(story.tags ?? []).join(' ')}`;
-  return mute.keywords.some((k) => keywordMatcher(k)(text));
+/** Builds the keyword matchers once for a whole render instead of once per story */
+function muteFilter(mute) {
+  const domains = mute.domains.map((d) => d.toLowerCase());
+  const keywords = mute.keywords.map(keywordMatcher);
+  return (story) => {
+    const domain = (story.domain ?? '').toLowerCase();
+    if (domains.some((d) => domain === d || domain.endsWith(`.${d}`))) return true;
+    const text = `${story.title} ${(story.tags ?? []).join(' ')}`;
+    return keywords.some((matches) => matches(text));
+  };
 }
 
 /**
@@ -136,10 +144,10 @@ function isMuted(story, mute) {
  * then keeps the first `limit` of each section unless it was expanded; `more` counts the rest
  */
 function visibleSections(feed) {
-  const mute = data.state.mute;
+  const isMuted = muteFilter(data.state.mute);
   const read = new Set(data.state.read);
   return feed.sections.map((s) => {
-    const kept = s.stories.filter((st) => !isMuted(st, mute));
+    const kept = s.stories.filter((st) => !isMuted(st));
     const stories = [...kept.filter((st) => !read.has(st.key)), ...kept.filter((st) => read.has(st.key))];
     const shown = expanded.has(s.id) ? stories : stories.slice(0, s.limit ?? stories.length);
     return { ...s, stories: shown, more: stories.length - shown.length };
@@ -159,8 +167,17 @@ function showFeed(feed) {
   render();
 }
 
+let loading = null;
+/** One fetch at a time: the first load and a quick return to the app must not both draw the page */
+function load() {
+  loading ??= fetchFeed().finally(() => {
+    loading = null;
+  });
+  return loading;
+}
+
 /** First load shows the feed; later loads (coming back to the app) only offer a newer one */
-async function load() {
+async function fetchFeed() {
   let feed;
   try {
     const res = await fetch('./feed.json', { cache: 'no-cache' });
@@ -181,6 +198,8 @@ async function load() {
   }
   if (feed.generatedAt === data.feed.generatedAt) return;
   pendingFeed = feed;
+  // An Undo still on screen wins; the newer edition is offered again on the next return
+  if (!$('toast').hidden && !$('toast-action').hidden) return;
   toast(t('update.ready'), {
     label: t('update.show'),
     run: () => {
@@ -195,10 +214,11 @@ function redraw(key) {
   const entries = views.get(key) ?? [];
   views.set(key, []);
   for (const { li, story, idPrefix, options } of entries) {
-    const focused = li.contains(document.activeElement) ? document.activeElement.classList[0] : null;
+    const focusable = (el) => [...el.querySelectorAll('a, button')];
+    const focused = focusable(li).indexOf(document.activeElement);
     const next = storyItem(story, idPrefix, options);
     li.replaceWith(next);
-    if (focused) next.querySelector(`.${focused}`)?.focus();
+    if (focused >= 0) focusable(next)[focused]?.focus();
   }
 }
 
@@ -217,16 +237,19 @@ function act(action, story) {
 
 /** Opening a story from Read later is the point of saving it, so it leaves the list (with Undo) */
 function readFromLater(story) {
-  const index = data.state.later.findIndex((x) => x.key === story.key);
-  act('read', story);
-  data.state.later = data.state.later.filter((x) => x.key !== story.key);
+  const s = data.state;
+  const index = s.later.findIndex((x) => x.key === story.key);
+  s.read = [...s.read.filter((k) => k !== story.key), story.key];
+  s.later = s.later.filter((x) => x.key !== story.key);
   saveState();
   // A link taken out of the page still opens, so the list can be redrawn right away
   render();
   toast(t('later.done'), {
-    label: t('mute.undo'),
+    label: t('undo'),
     run: () => {
-      data.state.later.splice(index, 0, story);
+      // Another tab may have changed the list meanwhile
+      if (s.later.some((x) => x.key === story.key)) return;
+      s.later.splice(Math.min(index, s.later.length), 0, story);
       saveState();
       render();
     },
@@ -240,10 +263,7 @@ function mute(rules, { undo = true } = {}) {
   saveState();
   render();
   const label = [...rules.domains, ...rules.keywords].join(t('list.separator'));
-  toast(
-    t('mute.done', { label }),
-    undo ? { label: t('mute.undo'), run: () => unmute(rules, { quiet: true }) } : undefined,
-  );
+  toast(t('mute.done', { label }), undo ? { label: t('undo'), run: () => unmute(rules, { quiet: true }) } : undefined);
 }
 
 function unmute(rules, { quiet = false } = {}) {
@@ -382,11 +402,11 @@ function source(a, story) {
   );
 }
 
-/** One story as an <article> named by its title. idPrefix keeps the heading ids unique on the page. */
 function markRead(story) {
   if (!data.state.read.includes(story.key)) act('read', story);
 }
 
+/** One story as an <article> named by its title. idPrefix keeps the heading ids unique on the page. */
 function storyItem(story, idPrefix, options = {}) {
   const s = data.state;
   const later = s.later.some((x) => x.key === story.key);
@@ -535,6 +555,9 @@ function renderToday(main) {
                 onclick: () => {
                   expanded.add(section.id);
                   render();
+                  // Keyboard and screen reader users continue at the first story that just appeared
+                  const revealed = $(`section-${section.id}`)?.querySelectorAll('.story-link')[section.stories.length];
+                  revealed?.focus({ preventScroll: true });
                 },
               },
               t('more', { n: section.more }),
@@ -543,7 +566,7 @@ function renderToday(main) {
       ),
     );
   }
-  if (feed.errors.length) {
+  if (feed.errors?.length) {
     main.append(
       h('p', { class: 'notice' }, t('errors', { sources: feed.errors.map((e) => e.source).join(t('list.separator')) })),
     );
@@ -616,8 +639,7 @@ function renderSettings(main) {
       ),
     );
   }
-  const help = h('p', { class: 'help' }, t('mute.help'));
-  section.append(help);
+  section.append(h('p', { class: 'help' }, t('mute.help')));
   main.append(section);
 }
 
@@ -688,7 +710,7 @@ window.addEventListener('hashchange', () => {
   render();
   window.scrollTo(0, 0);
 });
-// Reload when the app comes back to the foreground (e.g. reopened on the commute)
+// Check for a newer edition when the app comes back to the foreground (e.g. reopened on the commute)
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') load();
 });

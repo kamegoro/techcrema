@@ -18,7 +18,7 @@ npm install
 ### Everyday commands
 
 ```sh
-npm run check     # Biome lint + type check + unit tests with the 100% coverage gate (what CI runs)
+npm run check     # Biome lint + type check + unit tests with the 100% coverage gate (the CI "check" job)
 npm run format    # apply Biome formatting and safe fixes
 npm run e2e       # browser tests (Playwright: iPhone/WebKit, Android/Chromium, desktop)
 npm run collect   # fetch real data using ./techcrema.yml

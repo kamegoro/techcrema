@@ -58,19 +58,27 @@ export interface InterestResult {
   matchedKeywords: string[];
 }
 
+/** "Node.js", "nodejs" and "NodeJS" are the same tag */
+const tagKey = (tag: string) => tag.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+
 export function scoreInterest(story: Pick<Story, 'title' | 'tags'>, config: InterestConfig): InterestResult {
   const text = storyText(story);
-  let interest = 0;
-  const topics: string[] = [];
+  const storyTags = new Set(story.tags.map(tagKey));
+  const matched: { name: string; weight: number }[] = [];
   const matchedKeywords: string[] = [];
   for (const [name, topic] of Object.entries(config.topics)) {
     const hits = topic.keywords.filter((k) => keywordMatcher(k)(text));
-    if (hits.length === 0) continue;
-    topics.push(name);
+    if (hits.length === 0 && !topic.tags.some((t) => storyTags.has(tagKey(t)))) continue;
+    matched.push({ name, weight: topic.weight });
     matchedKeywords.push(...hits);
-    interest = Math.max(interest, topic.weight);
   }
-  return { interest, topics, matchedKeywords: [...new Set(matchedKeywords)] };
+  // Stable sort: equal weights keep the configured order
+  matched.sort((a, b) => b.weight - a.weight);
+  return {
+    interest: matched[0]?.weight ?? 0,
+    topics: matched.map((m) => m.name),
+    matchedKeywords: [...new Set(matchedKeywords)],
+  };
 }
 
 export function isMuted(
@@ -85,39 +93,11 @@ export function isMuted(
   return mute.keywords.some((k) => keywordMatcher(k)(text));
 }
 
-function hashString(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-export function seededRandom(seed: string): () => number {
-  let a = hashString(seed);
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-export function seededShuffle<T>(items: readonly T[], seed: string): T[] {
-  const rand = seededRandom(seed);
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [out[i], out[j]] = [out[j] as T, out[i] as T];
-  }
-  return out;
-}
-
 const OFFICIAL_SOURCES: ReadonlySet<SourceId> = new Set(['official', 'github_release']);
 const RESURFACE_DELTA = 0.1;
 const PLATFORM_FRESH_DAYS = 4;
+/** Outside your topics, only the top few percent of each platform make it onto the page */
+const TRENDING_MIN_POP = 0.97;
 
 export interface SeenEntry {
   date: string;
@@ -129,8 +109,10 @@ export interface BuildInput {
   layout: LayoutConfig;
   today: string;
   now: Date;
-  /** Language of the page; for_you_min_local keeps this many stories in it */
+  /** Language of the page; repositories described in it come first */
   language: Story['lang'];
+  /** Topic names in the configured order, one section each */
+  topics: string[];
   seen: Record<string, SeenEntry>;
   /**
    * Spare stories added to each section beyond its limit.
@@ -157,50 +139,31 @@ function ageDays(story: Story, now: Date): number {
   return (now.getTime() - Date.parse(story.publishedAt)) / 86_400_000;
 }
 
-/** At most this share of a section goes to one topic, as long as other topics have stories to fill it */
-const MAX_TOPIC_RATIO = 0.5;
-
 /**
  * Takes stories from the top while keeping any one platform under its cap.
- * If a quota is given, first reserves up to quota.count stories that pass quota.test (e.g. a minimum in the page's language).
- * One topic (a story's first matched topic) is also kept to about half the section; this cap is soft:
- * if other topics can't fill the section, the remaining slots go back to the capped topic.
+ * With `soft`, slots the cap left empty go back to the capped platforms, so a topic that only
+ * one platform writes about still fills up.
  */
-export function pickWithCaps(
-  ranked: readonly Story[],
-  limit: number,
-  maxRatio: number,
-  quota?: { count: number; test: (s: Story) => boolean },
-): Story[] {
+export function pickWithCaps(ranked: readonly Story[], limit: number, maxRatio: number, soft = false): Story[] {
   const maxPerSource = Math.max(1, Math.ceil(limit * maxRatio));
-  const maxPerTopic = Math.max(1, Math.ceil(limit * MAX_TOPIC_RATIO));
   const sourceCounts = new Map<SourceId, number>();
-  const topicCounts = new Map<string, number>();
-  const picked: Story[] = [];
-  const tryPick = (s: Story, capTopics: boolean): boolean => {
-    if (picked.length >= limit || picked.includes(s)) return false;
+  const picked = new Set<Story>();
+  for (const s of ranked) {
+    if (picked.size >= limit) break;
     const src = primarySource(s);
     const n = sourceCounts.get(src) ?? 0;
-    if (n >= maxPerSource) return false;
-    const topic = s.topics[0];
-    const t = topic === undefined ? 0 : (topicCounts.get(topic) ?? 0);
-    if (capTopics && topic !== undefined && t >= maxPerTopic) return false;
+    if (n >= maxPerSource) continue;
     sourceCounts.set(src, n + 1);
-    if (topic !== undefined) topicCounts.set(topic, t + 1);
-    picked.push(s);
-    return true;
-  };
-  if (quota) {
-    let got = 0;
+    picked.add(s);
+  }
+  if (soft) {
     for (const s of ranked) {
-      if (got >= quota.count) break;
-      if (quota.test(s) && tryPick(s, true)) got++;
+      if (picked.size >= limit) break;
+      picked.add(s);
     }
   }
-  for (const s of ranked) tryPick(s, true);
-  for (const s of ranked) tryPick(s, false);
   // Restore the original ranking order
-  return ranked.filter((s) => picked.includes(s));
+  return ranked.filter((s) => picked.has(s));
 }
 
 /** Official section: keep the newest item per publisher and count the rest ("+N more") */
@@ -220,14 +183,14 @@ function pickWithSpare(
   limit: number,
   spare: number,
   maxRatio: number,
-  quota?: { count: number; test: (s: Story) => boolean },
+  soft = false,
 ): Story[] {
-  const main = pickWithCaps(ranked, limit, maxRatio, quota);
-  if (spare <= 0) return main;
+  const main = pickWithCaps(ranked, limit, maxRatio, soft);
   const rest = pickWithCaps(
     ranked.filter((s) => !main.includes(s)),
     spare,
     maxRatio,
+    soft,
   );
   return [...main, ...rest];
 }
@@ -252,25 +215,25 @@ export function buildSections(input: BuildInput): Section[] {
   const platform = visible.filter((s) => !isOfficial(s) && !isRepoOnly(s) && ageDays(s, now) <= PLATFORM_FRESH_DAYS);
   const byPop = (a: Story, b: Story) => b.pop - a.pop || b.interest - a.interest || a.key.localeCompare(b.key);
 
-  const forYou = pickWithSpare(
-    platform.filter((s) => s.interest > 0).sort(byPop),
-    layout.for_you,
-    spare,
-    layout.max_source_ratio,
-    { count: layout.for_you_min_local, test: (s) => s.lang === language },
-  );
+  const topics: Section[] = input.topics.map((name, i) => ({
+    id: `topic-${i}`,
+    title: name,
+    stories: pickWithSpare(
+      platform.filter((s) => s.topics[0] === name).sort(byPop),
+      layout.per_topic,
+      spare,
+      layout.max_source_ratio,
+      true,
+    ),
+    limit: layout.per_topic,
+  }));
 
   const trending = pickWithSpare(
-    platform.filter((s) => s.interest === 0 && s.pop >= 0.97).sort(byPop),
+    platform.filter((s) => s.interest === 0 && s.pop >= TRENDING_MIN_POP).sort(byPop),
     layout.trending,
     spare,
     layout.max_source_ratio,
   );
-
-  const discoverPool = platform
-    .filter((s) => s.interest === 0 && s.pop >= 0.85 && !trending.includes(s))
-    .sort((a, b) => a.key.localeCompare(b.key));
-  const discover = seededShuffle(discoverPool, today).slice(0, layout.discover + spare);
 
   const repos = visible
     .filter((s) => isRepoOnly(s))
@@ -285,9 +248,8 @@ export function buildSections(input: BuildInput): Section[] {
 
   return [
     { id: 'official', stories: official, limit: official.length },
-    { id: 'forYou', stories: forYou, limit: layout.for_you },
+    ...topics,
     { id: 'trending', stories: trending, limit: layout.trending },
-    { id: 'discover', stories: discover, limit: layout.discover },
     { id: 'repos', stories: repos, limit: layout.repos },
   ];
 }

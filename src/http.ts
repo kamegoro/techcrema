@@ -3,7 +3,7 @@
 /** On Actions, name the repository running the job, so each user's requests identify their own repo */
 export function userAgent(env: NodeJS.ProcessEnv = process.env): string {
   const repo = env.GITHUB_REPOSITORY ?? '';
-  return `techcrema/0.2 (personal tech reader; github.com/${/^[\w.-]+\/[\w.-]+$/.test(repo) ? repo : 'kamegoro/techcrema'})`;
+  return `techcrema/1 (personal tech reader; github.com/${/^[\w.-]+\/[\w.-]+$/.test(repo) ? repo : 'kamegoro/techcrema'})`;
 }
 const DEFAULT_INTERVAL_MS = 1500;
 /** Per-host pauses, e.g. to honor Crawl-delay in robots.txt */

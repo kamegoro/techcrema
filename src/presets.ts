@@ -8,30 +8,33 @@ export interface Preset {
   official: string[];
 }
 
-const topic = (keywords: string[], weight = 1): Topic => ({ weight, keywords });
+const topic = (keywords: string[], tags: string[]): Topic => ({ weight: 1, keywords, tags });
 
 export const PRESETS_BY_NAME = {
   frontend: {
     description: 'Web front end: frameworks, CSS, browsers',
     topics: {
-      frontend: topic([
-        'react',
-        'vue',
-        'svelte',
-        'angular',
-        'solid.js',
-        'css',
-        'html',
-        'javascript',
-        'typescript',
-        'vite',
-        'next.js',
-        'nextjs',
-        'tailwind',
-        'web components',
-        'webassembly',
-        'web platform',
-      ]),
+      Frontend: topic(
+        [
+          'react',
+          'vue',
+          'svelte',
+          'angular',
+          'solid.js',
+          'css',
+          'html',
+          'javascript',
+          'typescript',
+          'vite',
+          'next.js',
+          'nextjs',
+          'tailwind',
+          'web components',
+          'webassembly',
+          'web platform',
+        ],
+        ['frontend', 'react'],
+      ),
     },
     official: [
       'React https://react.dev/rss.xml',
@@ -45,7 +48,10 @@ export const PRESETS_BY_NAME = {
   node: {
     description: 'Server-side JavaScript runtimes and tooling',
     topics: {
-      node: topic(['node.js', 'nodejs', 'npm', 'pnpm', 'yarn', 'deno', 'bun', 'v8', 'javascript runtime']),
+      'Node.js': topic(
+        ['node.js', 'nodejs', 'npm', 'pnpm', 'yarn', 'deno', 'bun', 'v8', 'javascript runtime'],
+        ['nodejs', 'node'],
+      ),
     },
     official: [
       'Node.js https://nodejs.org/en/feed/blog.xml',
@@ -56,7 +62,7 @@ export const PRESETS_BY_NAME = {
   },
   rust: {
     description: 'The Rust language and ecosystem',
-    topics: { rust: topic(['rust', 'rustc', 'cargo', 'crates.io', 'tokio', 'rustacean']) },
+    topics: { Rust: topic(['rust', 'rustc', 'cargo', 'crates.io', 'tokio', 'rustacean'], ['rust']) },
     official: [
       'Rust Blog https://blog.rust-lang.org/feed.xml',
       'This Week in Rust https://this-week-in-rust.org/rss.xml',
@@ -66,13 +72,16 @@ export const PRESETS_BY_NAME = {
   go: {
     description: 'The Go language',
     // "go" alone matches far too many English titles, so match phrases instead
-    topics: { go: topic(['golang', 'goroutine', 'goroutines', 'in go', 'go modules', 'go generics']) },
+    topics: { Go: topic(['golang', 'goroutine', 'goroutines', 'in go', 'go modules', 'go generics'], ['go']) },
     official: ['The Go Blog https://go.dev/blog/feed.atom'],
   },
   python: {
     description: 'Python and its tooling',
     topics: {
-      python: topic(['python', 'cpython', 'pip', 'uv', 'django', 'fastapi', 'flask', 'pandas', 'numpy', 'pydantic']),
+      Python: topic(
+        ['python', 'cpython', 'pip', 'uv', 'django', 'fastapi', 'flask', 'pandas', 'numpy', 'pydantic'],
+        ['python'],
+      ),
     },
     official: ['Python Insider https://blog.python.org/feeds/posts/default', 'astral-sh/uv'],
   },
@@ -80,29 +89,32 @@ export const PRESETS_BY_NAME = {
     description: 'LLMs, agents and machine learning',
     topics: {
       // Not plain "ai": dev.to tags nearly every post with it, which would flood "For you"
-      ai: topic([
-        'llm',
-        'llms',
-        'gpt',
-        'chatgpt',
-        'claude',
-        'gemini',
-        'openai',
-        'anthropic',
-        'ai agent',
-        'ai agents',
-        'agentic',
-        'mcp',
-        'rag',
-        'genai',
-        'generative ai',
-        'ai model',
-        'ai models',
-        'ai coding',
-        'machine learning',
-        'deep learning',
-        'fine-tuning',
-      ]),
+      AI: topic(
+        [
+          'llm',
+          'llms',
+          'gpt',
+          'chatgpt',
+          'claude',
+          'gemini',
+          'openai',
+          'anthropic',
+          'ai agent',
+          'ai agents',
+          'agentic',
+          'mcp',
+          'rag',
+          'genai',
+          'generative ai',
+          'ai model',
+          'ai models',
+          'ai coding',
+          'machine learning',
+          'deep learning',
+          'fine-tuning',
+        ],
+        ['ai', 'llm'],
+      ),
     },
     official: [
       'OpenAI https://openai.com/news/rss.xml',
@@ -113,22 +125,25 @@ export const PRESETS_BY_NAME = {
   devops: {
     description: 'Containers, Kubernetes, CI/CD and operations',
     topics: {
-      devops: topic([
-        'kubernetes',
-        'k8s',
-        'docker',
-        'container',
-        'containers',
-        'terraform',
-        'opentofu',
-        'github actions',
-        'ci/cd',
-        'observability',
-        'opentelemetry',
-        'sre',
-        'incident',
-        'postmortem',
-      ]),
+      DevOps: topic(
+        [
+          'kubernetes',
+          'k8s',
+          'docker',
+          'container',
+          'containers',
+          'terraform',
+          'opentofu',
+          'github actions',
+          'ci/cd',
+          'observability',
+          'opentelemetry',
+          'sre',
+          'incident',
+          'postmortem',
+        ],
+        ['devops', 'kubernetes'],
+      ),
     },
     official: [
       'Kubernetes https://kubernetes.io/feed.xml',
@@ -140,22 +155,25 @@ export const PRESETS_BY_NAME = {
   security: {
     description: 'Vulnerabilities, exploits and supply-chain security',
     topics: {
-      security: topic([
-        'security',
-        'vulnerability',
-        'vulnerabilities',
-        'cve',
-        'exploit',
-        'zero-day',
-        '0day',
-        'malware',
-        'ransomware',
-        'supply chain',
-        'supply-chain',
-        'backdoor',
-        'xss',
-        'rce',
-      ]),
+      Security: topic(
+        [
+          'security',
+          'vulnerability',
+          'vulnerabilities',
+          'cve',
+          'exploit',
+          'zero-day',
+          '0day',
+          'malware',
+          'ransomware',
+          'supply chain',
+          'supply-chain',
+          'backdoor',
+          'xss',
+          'rce',
+        ],
+        ['security'],
+      ),
     },
     official: [
       'Project Zero https://googleprojectzero.blogspot.com/feeds/posts/default',
@@ -164,7 +182,7 @@ export const PRESETS_BY_NAME = {
   },
   neovim: {
     description: 'Neovim and Vim',
-    topics: { neovim: topic(['neovim', 'nvim', 'vim', 'lua', 'treesitter', 'tree-sitter', 'lsp']) },
+    topics: { Neovim: topic(['neovim', 'nvim', 'vim', 'lua', 'treesitter', 'tree-sitter', 'lsp'], ['neovim', 'vim']) },
     official: ['Neovim https://neovim.io/news.xml', 'neovim/neovim'],
   },
 } satisfies Record<string, Preset>;

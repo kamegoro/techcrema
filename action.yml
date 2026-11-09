@@ -13,7 +13,7 @@ inputs:
     description: 'Comma-separated ready-made interests: frontend, node, rust, go, python, ai, devops, security, neovim'
     required: false
   topics:
-    description: 'What you care about, as YAML. e.g. "rust: [rust, cargo]" one per line'
+    description: 'What you care about, as YAML; each topic gets a section. e.g. "Rust: [rust, cargo]" one per line'
     required: false
   sources:
     description: 'Comma-separated sources (hackernews, lobsters, devto, huggingface, github, hatena, zenn, qiita). Defaults depend on language.'

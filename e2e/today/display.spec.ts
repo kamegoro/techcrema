@@ -11,40 +11,45 @@ test.describe('Today page', () => {
         - paragraph: Sun, November 8 · updated 08:00 AM
         - button "Dark mode" [pressed=false]
         - navigation "Views":
-          - link "Today 8"
+          - link "Today 7"
           - link "Later"
           - link "Muted"
         - navigation "Sections":
           - link "Official 1"
-          - link "For you 3"
-          - link "Trending 2"
-          - link "Discover 1"
+          - link "Rust 3"
+          - link "Elsewhere 2"
           - link "New repos 1"
     `);
     await reader.expectCurrentTab('Today');
   });
 
-  test('sections appear in a fixed order', async ({ reader }) => {
+  test('official news comes first, then one section per topic, then the rest', async ({ reader }) => {
     await reader.open(makeFeed());
-    await reader.expectSections(['Official', 'For you', 'Trending', 'Discover', 'New repos']);
+    await reader.expectSections(['Official', 'Rust', 'Elsewhere', 'New repos']);
+  });
+
+  test('a topic with nothing today is left out', async ({ reader }) => {
+    await reader.open(makeFeed());
+    await expect(reader.section('Go')).toHaveCount(0);
   });
 
   test('a section shows only as many stories as its limit', async ({ reader }) => {
     await reader.open(makeFeed());
-    await reader.expectStories('For you', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
+    await reader.expectStories('Rust', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
+    await reader.expectMoreToShow('Rust', 2);
+    await reader.expectMoreToShow('Elsewhere', null);
   });
 
-  test('a story shows where it is popular, its site, its age, its topics and its actions', async ({ reader }) => {
+  test('a story shows its title, where it is popular, its site, its age and its actions', async ({ reader }) => {
     await reader.open(makeFeed());
     await expect(reader.story('Rust ownership explained')).toMatchAriaSnapshot(`
       - article "Rust ownership explained":
-        - link "Discussion on HN (120 pt)"
         - heading "Rust ownership explained" [level=3]:
           - link "Rust ownership explained":
             - /url: https://alpha.dev/a
+        - link "Discussion on HN (120 pt)"
         - text: alpha.dev
         - time: 3 hr. ago
-        - text: "#rust"
         - button "Read later"
         - button "Mute"
     `);
@@ -59,23 +64,8 @@ test.describe('Today page', () => {
         - list:
           - listitem:
             - article "node v26.1.0":
-              - text: Release Minor +2 more
+              - text: Release Minor and 2 more github.com
     `);
-  });
-
-  test('a story in another language says which one', async ({ reader }) => {
-    const feed = makeFeed();
-    const withJapanese = {
-      ...feed,
-      sections: feed.sections.map((s) =>
-        s.id === 'discover'
-          ? { ...s, stories: s.stories.map((st) => ({ ...st, title: 'Rustの所有権', lang: 'ja' as const })) }
-          : s,
-      ),
-    };
-    await reader.open(withJapanese);
-    await expect(reader.story('Rustの所有権')).toContainText('JP');
-    await expect(reader.story('Rust ownership explained')).not.toContainText('EN');
   });
 
   test('the page title comes from the settings', async ({ reader, page }) => {
@@ -106,14 +96,14 @@ test.describe('Japanese page', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
     await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText([
       '公式',
-      'あなた向け',
-      '話題',
-      '発見',
+      'Rust',
+      'そのほかの話題',
       '新しいリポジトリ',
     ]);
+    await expect(page.getByRole('button', { name: 'さらに2件' })).toBeVisible();
     await expect(page.getByRole('navigation', { name: '表示切り替え' })).toMatchAriaSnapshot(`
       - navigation:
-        - link "今日 8"
+        - link "今日 7"
         - link "あとで"
         - link "ミュート"
     `);

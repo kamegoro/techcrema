@@ -31,12 +31,13 @@ export function story(key: string, over: Partial<Story> = {}): Story {
   };
 }
 
-const section = (id: SectionId, limit: number, stories: Story[]) => ({ id, limit, stories });
+const section = (id: SectionId, limit: number, stories: Story[], title?: string) => ({ id, limit, stories, title });
 
 /**
  * A small, fully known feed:
- * - "For you" shows 3 of 5 stories; two come from alpha.dev, so muting it must refill from the spares
- * - "Trending" holds hostile input: an HTML-looking title and a javascript: URL
+ * - The "Rust" topic shows 3 of 5 stories; two come from alpha.dev, so muting it must refill from the rest
+ * - The "Go" topic has nothing today
+ * - "Elsewhere" holds hostile input: an HTML-looking title and a javascript: URL
  */
 export function makeFeed(over: Partial<Feed> = {}): Feed {
   return {
@@ -58,24 +59,29 @@ export function makeFeed(over: Partial<Feed> = {}): Feed {
           groupedCount: 2,
         }),
       ]),
-      section('forYou', 3, [
-        story('a', {
-          domain: 'alpha.dev',
-          title: 'Rust ownership explained',
-          topics: ['rust'],
-          interest: 1,
-          matchedKeywords: ['rust'],
-        }),
-        story('b', { domain: 'beta.dev', title: 'Writing a Rust CLI', topics: ['rust'], interest: 1 }),
-        story('c', { domain: 'alpha.dev', title: 'Another alpha post', topics: ['rust'], interest: 1 }),
-        story('d', { domain: 'gamma.dev', title: 'Cargo workspaces', topics: ['rust'], interest: 1 }),
-        story('e', { domain: 'delta.dev', title: 'Spare story e', topics: ['rust'], interest: 1 }),
-      ]),
+      section(
+        'topic-0',
+        3,
+        [
+          story('a', {
+            domain: 'alpha.dev',
+            title: 'Rust ownership explained',
+            topics: ['rust'],
+            interest: 1,
+            matchedKeywords: ['rust'],
+          }),
+          story('b', { domain: 'beta.dev', title: 'Writing a Rust CLI', topics: ['rust'], interest: 1 }),
+          story('c', { domain: 'alpha.dev', title: 'Another alpha post', topics: ['rust'], interest: 1 }),
+          story('d', { domain: 'gamma.dev', title: 'Cargo workspaces', topics: ['rust'], interest: 1 }),
+          story('e', { domain: 'delta.dev', title: 'Spare story e', topics: ['rust'], interest: 1 }),
+        ],
+        'Rust',
+      ),
+      section('topic-1', 5, [], 'Go'),
       section('trending', 2, [
         story('xss', { title: '<img src=x onerror="window.__xss = true">' }),
         story('jsurl', { title: 'Not a link', url: 'javascript:window.__xss = true' }),
       ]),
-      section('discover', 1, [story('disc', { title: 'Something different' })]),
       section('repos', 1, [
         story('repo', {
           title: 'someone/new-repo — a new tool',

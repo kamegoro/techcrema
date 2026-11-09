@@ -12,17 +12,18 @@ One page a day, made for your phone. No server, no database, no AI.
 <a href="https://github.com/kamegoro/techcrema/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kamegoro/techcrema/ci.yml?branch=main&label=CI&logo=github&style=flat"></a>
 <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue?style=flat"></a>
 
-<img src="docs/demo.gif" alt="Skimming the day's sections, muting a site, saving a story for later and switching to dark mode" width="300" />
+<img src="docs/demo.gif" alt="Jumping to a topic, showing more of it, muting a site, saving a story for later and switching to dark mode" width="300" />
 
 </div>
 
 ## Why
 
 RSS readers show you everything. Aggregators show you what's popular for everyone.
-TechCrema shows the overlap: **popular right now _and_ about your topics**, plus a few hits from outside your bubble.
+TechCrema shows the overlap: **popular right now _and_ about your topics**, one section per topic, plus a few hits from outside your bubble.
 
 - ⚖️ **Fair across sites**: 300 HN points and 300 Hatena bookmarks don't mean the same thing, so every score becomes a percentile within its own site ([how it works](docs/how-it-works.md))
-- 🧭 **Five short sections**: Official releases, For you, Trending, Discover and New repos
+- 🧭 **A section per topic**: your topics are the table of contents, each with its best stories and a "Show more"
+- 🔎 **Goes looking for your topics**: besides the front pages, it checks each topic's tag on Zenn, Qiita, dev.to and Lobsters, so niche topics still turn up
 - 🔁 **No repeats**: what you saw yesterday stays gone
 - 📱 **Phone first**: dark mode, add to home screen, one small JSON file
 - 🔇 **Mute and save** right from the page; everything stays in your browser
@@ -55,12 +56,12 @@ TechCrema shows the overlap: **popular right now _and_ about your topics**, plus
 
 Everything goes under `with:` in the workflow above.
 
-**Your own topics** — a story whose title or tags contain a keyword lands in _For you_:
+**Your own topics** — each one gets a section; a story whose title or tags contain a keyword lands in it:
 
 ```yaml
 topics: |
-  rust: [rust, cargo]
-  databases: [postgres, sqlite, duckdb]
+  Rust: [rust, cargo]
+  Databases: [postgres, sqlite, duckdb]
 ```
 
 **Follow releases and blogs, hide what you don't want:**

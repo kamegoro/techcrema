@@ -24,20 +24,20 @@ test.describe('Mute', () => {
 
   test('muting a site hides it and refills the section from spare stories', async ({ reader }) => {
     await reader.muteSiteOf('Rust ownership explained', 'alpha.dev');
-    await reader.expectStories('For you', ['Writing a Rust CLI', 'Cargo workspaces', 'Spare story e']);
+    await reader.expectStories('Rust', ['Writing a Rust CLI', 'Cargo workspaces', 'Spare story e']);
   });
 
   test('typed keywords are muted', async ({ reader }) => {
     await reader.openMuteSheet('Rust ownership explained');
     await reader.typeKeywordsToMute('cargo, cli');
     await reader.confirmMute();
-    await reader.expectStories('For you', ['Rust ownership explained', 'Another alpha post', 'Spare story e']);
+    await reader.expectStories('Rust', ['Rust ownership explained', 'Another alpha post', 'Spare story e']);
   });
 
   test('a mute can be undone from the message', async ({ reader }) => {
     await reader.muteSiteOf('Rust ownership explained', 'alpha.dev');
     await reader.undoFromMessage();
-    await reader.expectStories('For you', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
+    await reader.expectStories('Rust', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
   });
 
   test('the message offering Undo goes away after a few seconds', async ({ reader }) => {
@@ -52,7 +52,7 @@ test.describe('Mute', () => {
     await reader.openMuteSheet('Rust ownership explained');
     await reader.chooseToMute('Site: alpha.dev');
     await reader.cancelMute();
-    await reader.expectStories('For you', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
+    await reader.expectStories('Rust', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
   });
 
   test('confirming with nothing chosen says so', async ({ reader }) => {
@@ -64,7 +64,7 @@ test.describe('Mute', () => {
   test('mutes are remembered after reopening', async ({ reader }) => {
     await reader.muteSiteOf('Rust ownership explained', 'alpha.dev');
     await reader.reopen();
-    await reader.expectNoStoryFrom('For you', 'alpha.dev');
+    await reader.expectNoStoryFrom('Rust', 'alpha.dev');
     await reader.expectTabCount('Muted', 1);
   });
 
@@ -75,6 +75,6 @@ test.describe('Mute', () => {
     await reader.unmute('alpha.dev');
     await reader.expectText('Nothing muted');
     await reader.goToTab('Today');
-    await reader.expectStories('For you', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
+    await reader.expectStories('Rust', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
   });
 });

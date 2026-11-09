@@ -9,7 +9,6 @@ import {
   popularity,
   primarySource,
   scoreInterest,
-  seededShuffle,
 } from '../src/rank.ts';
 import type { InterestConfig, LayoutConfig, SourceId, Story } from '../src/types.ts';
 
@@ -90,18 +89,27 @@ describe('keywordMatcher', () => {
 describe('scoreInterest', () => {
   const config: InterestConfig = {
     topics: {
-      neovim: { weight: 1, keywords: ['neovim', 'lua'] },
-      em: { weight: 0.7, keywords: ['1on1'] },
+      em: { weight: 0.7, keywords: ['1on1'], tags: [] },
+      neovim: { weight: 1, keywords: ['neovim', 'lua'], tags: [] },
+      node: { weight: 1, keywords: ['npm'], tags: ['node.js'] },
     },
   };
-  it('returns the highest weight among matched topics', () => {
+  it('returns the highest weight, listing the heaviest topic first', () => {
     const r = scoreInterest({ title: 'Neovim で 1on1 メモ', tags: [] }, config);
     expect(r.interest).toBe(1);
     expect(r.topics).toEqual(['neovim', 'em']);
-    expect(r.matchedKeywords).toEqual(['neovim', '1on1']);
+    expect(r.matchedKeywords).toEqual(['1on1', 'neovim']);
+  });
+  it('keeps the configured order between topics of the same weight', () => {
+    expect(scoreInterest({ title: 'Neovim and npm', tags: [] }, config).topics).toEqual(['neovim', 'node']);
   });
   it('also looks at tags', () => {
     expect(scoreInterest({ title: 'Plugin tips', tags: ['Lua'] }, config).interest).toBe(1);
+  });
+  it('counts a topic tag on the story, however it is spelled', () => {
+    const r = scoreInterest({ title: 'Release notes', tags: ['NodeJS'] }, config);
+    expect(r.topics).toEqual(['node']);
+    expect(r.matchedKeywords).toEqual([]);
   });
   it('is 0 when nothing matches', () => {
     expect(scoreInterest({ title: 'Rust news', tags: [] }, config).interest).toBe(0);
@@ -119,15 +127,6 @@ describe('isMuted', () => {
   });
 });
 
-describe('seededShuffle', () => {
-  it('gives the same order for the same seed without changing the input', () => {
-    const input = [1, 2, 3, 4, 5, 6, 7, 8];
-    expect(seededShuffle(input, '2026-11-08')).toEqual(seededShuffle(input, '2026-11-08'));
-    expect(input).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
-    expect([...seededShuffle(input, 'x')].sort()).toEqual(input);
-  });
-});
-
 describe('pickWithCaps', () => {
   it('keeps any one platform under its cap', () => {
     const ranked = [
@@ -139,14 +138,15 @@ describe('pickWithCaps', () => {
     const picked = pickWithCaps(ranked, 3, 0.4);
     expect(picked.map((s) => s.key)).toEqual(['h1', 'h2', 'z1']);
   });
-  it('reserves the quota first and keeps the original order', () => {
+  it('with soft caps, fills the remaining slots in the original order', () => {
     const ranked = [
-      story({ key: 'en1', appearances: from('hackernews') }),
-      story({ key: 'en2', appearances: from('devto') }),
-      story({ key: 'ja1', lang: 'ja', appearances: from('zenn') }),
+      story({ key: 'h1', appearances: from('hackernews', 0.99) }),
+      story({ key: 'h2', appearances: from('hackernews', 0.98) }),
+      story({ key: 'z1', appearances: from('zenn', 0.5) }),
+      story({ key: 'h3', appearances: from('hackernews', 0.97) }),
     ];
-    const picked = pickWithCaps(ranked, 2, 1, { count: 1, test: (s) => s.lang === 'ja' });
-    expect(picked.map((s) => s.key)).toEqual(['en1', 'ja1']);
+    expect(pickWithCaps(ranked, 3, 0.4, true).map((s) => s.key)).toEqual(['h1', 'h2', 'z1']);
+    expect(pickWithCaps(ranked, 4, 0.25, true).map((s) => s.key)).toEqual(['h1', 'h2', 'z1', 'h3']);
   });
 });
 
@@ -199,139 +199,108 @@ describe('primarySource', () => {
 describe('buildSections', () => {
   const layout: LayoutConfig = {
     official_days: 3,
-    for_you: 2,
-    for_you_min_local: 0,
+    per_topic: 2,
     trending: 2,
-    discover: 1,
     repos: 1,
     max_source_ratio: 1,
   };
   const now = new Date('2026-11-08T09:00:00Z');
   const today = '2026-11-08';
+  const base = { layout, language: 'en' as const, topics: ['ai', 'rust'], today, now, seen: {} };
   const sectionKeys = (sections: ReturnType<typeof buildSections>) =>
-    Object.fromEntries(sections.map((s) => [s.id, s.stories.map((st) => st.key)]));
+    Object.fromEntries(sections.map((s) => [s.title ?? s.id, s.stories.map((st) => st.key)]));
 
-  it('sorts stories into sections by popularity and interest', () => {
+  it('lists official news, then one section per topic, then the rest by popularity', () => {
     const stories = [
       story({ key: 'official', appearances: from('official', null), publisher: 'Node.js' }),
       story({ key: 'old-official', appearances: from('official', null), publishedAt: '2026-10-01T00:00:00Z' }),
-      story({ key: 'mine-hot', interest: 1, pop: 0.9 }),
-      story({ key: 'mine-cold', interest: 1, pop: 0.3 }),
-      story({ key: 'mine-low', interest: 1, pop: 0.1 }),
+      story({ key: 'ai-hot', interest: 1, topics: ['ai'], pop: 0.9 }),
+      story({ key: 'ai-cold', interest: 1, topics: ['ai'], pop: 0.3 }),
+      story({ key: 'ai-low', interest: 1, topics: ['ai'], pop: 0.1 }),
+      story({ key: 'rust-and-ai', interest: 1, topics: ['rust', 'ai'], pop: 0.5 }),
       story({ key: 'hot', pop: 0.99 }),
       story({ key: 'warm', pop: 0.9 }),
-      story({ key: 'cold', pop: 0.2 }),
       story({ key: 'repo', appearances: from('github_new_repos', 0.9), pop: 0.9 }),
     ];
-    const keys = sectionKeys(buildSections({ stories, layout, language: 'en', today, now, seen: {} }));
-    expect(keys).toEqual({
+    const sections = buildSections({ ...base, stories });
+    expect(sections.map((s) => [s.id, s.limit])).toEqual([
+      ['official', 1],
+      ['topic-0', 2],
+      ['topic-1', 2],
+      ['trending', 2],
+      ['repos', 1],
+    ]);
+    expect(sectionKeys(sections)).toEqual({
       official: ['official'],
-      forYou: ['mine-hot', 'mine-cold'],
+      ai: ['ai-hot', 'ai-cold'],
+      rust: ['rust-and-ai'],
       trending: ['hot'],
-      discover: ['warm'],
       repos: ['repo'],
     });
   });
 
+  it('keeps a section for a topic with nothing today', () => {
+    expect(sectionKeys(buildSections({ ...base, stories: [] })).rust).toEqual([]);
+  });
+
   it('hides stories shown before, but brings back ones that kept climbing', () => {
+    const mine = { interest: 1, topics: ['ai'] };
     const stories = [
-      story({ key: 'shown', interest: 1, pop: 0.5 }),
-      story({ key: 'grew', interest: 1, pop: 0.8 }),
-      story({ key: 'today', interest: 1, pop: 0.4 }),
+      story({ key: 'shown', ...mine, pop: 0.5 }),
+      story({ key: 'grew', ...mine, pop: 0.8 }),
+      story({ key: 'today', ...mine, pop: 0.4 }),
     ];
     const seen = {
       shown: { date: '2026-11-07', pop: 0.45 },
       grew: { date: '2026-11-07', pop: 0.5 },
       today: { date: today, pop: 0.4 },
     };
-    const sections = buildSections({ stories, layout, language: 'en', today, now, seen });
-    const forYou = sections.find((s) => s.id === 'forYou')?.stories;
-    expect(forYou?.map((s) => [s.key, s.resurfaced ?? false])).toEqual([
+    const ai = buildSections({ ...base, stories, seen }).find((s) => s.title === 'ai')?.stories;
+    expect(ai?.map((s) => [s.key, s.resurfaced ?? false])).toEqual([
       ['grew', true],
       ['today', false],
     ]);
   });
 
   it('drops old platform stories', () => {
-    const stories = [story({ key: 'stale', interest: 1, pop: 0.9, publishedAt: '2026-10-01T00:00:00Z' })];
-    const keys = sectionKeys(buildSections({ stories, layout, language: 'en', today, now, seen: {} }));
-    expect(keys.forYou).toEqual([]);
+    const stories = [story({ key: 'stale', interest: 1, topics: ['ai'], publishedAt: '2026-10-01T00:00:00Z' })];
+    expect(sectionKeys(buildSections({ ...base, stories })).ai).toEqual([]);
   });
 
-  it('appends spares for mutes and records the visible count as limit', () => {
-    const stories = ['a', 'b', 'c', 'd'].map((k, i) => story({ key: k, interest: 1, pop: 0.9 - i * 0.1 }));
-    const sections = buildSections({ stories, layout, language: 'en', today, now, seen: {}, spare: 1 });
-    const forYou = sections.find((s) => s.id === 'forYou');
-    expect(forYou?.limit).toBe(2);
-    expect(forYou?.stories.map((s) => s.key)).toEqual(['a', 'b', 'c']);
+  it('appends the rest of a topic after its limit, for "Show more"', () => {
+    const stories = ['a', 'b', 'c', 'd'].map((k, i) =>
+      story({ key: k, interest: 1, topics: ['ai'], pop: 0.9 - i * 0.1 }),
+    );
+    const ai = buildSections({ ...base, stories, spare: 1 }).find((s) => s.title === 'ai');
+    expect(ai?.limit).toBe(2);
+    expect(ai?.stories.map((s) => s.key)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('fills a topic from one platform when no other platform has stories for it', () => {
+    const stories = ['z1', 'z2'].map((k) => story({ key: k, interest: 1, topics: ['ai'], appearances: from('zenn') }));
+    const strict = { ...layout, max_source_ratio: 0.4 };
+    expect(sectionKeys(buildSections({ ...base, layout: strict, stories })).ai).toEqual(['z1', 'z2']);
   });
 
   it('prefers repositories described in the page language', () => {
     const repo = (key: string, lang: Story['lang'], pop: number) =>
       story({ key, lang, pop, appearances: from('github_new_repos', pop) });
     const stories = [repo('zh-hot', 'zh', 0.99), repo('en-warm', 'en', 0.8)];
-    const keys = sectionKeys(buildSections({ stories, layout, language: 'en', today, now, seen: {} }));
-    expect(keys.repos).toEqual(['en-warm']);
-  });
-
-  it('keeps one topic to about half of "For you" while other topics have stories', () => {
-    const ai = ['a1', 'a2', 'a3', 'a4'].map((k, i) =>
-      story({ key: k, interest: 1, topics: ['ai'], pop: 0.99 - i * 0.01 }),
-    );
-    const rust = story({ key: 'r1', interest: 1, topics: ['rust'], pop: 0.5 });
-    const wide = { ...layout, for_you: 4 };
-    const keys = sectionKeys(
-      buildSections({ stories: [...ai, rust], layout: wide, language: 'en', today, now, seen: {} }),
-    );
-    expect(keys.forYou).toEqual(['a1', 'a2', 'a3', 'r1']);
-  });
-
-  it('still fills "For you" when only one topic has stories', () => {
-    const ai = ['a1', 'a2', 'a3', 'a4'].map((k) => story({ key: k, interest: 1, topics: ['ai'] }));
-    const wide = { ...layout, for_you: 4 };
-    const keys = sectionKeys(buildSections({ stories: ai, layout: wide, language: 'en', today, now, seen: {} }));
-    expect(keys.forYou?.length).toBe(4);
-  });
-
-  it('keeps the minimum number of stories in the page language', () => {
-    const en = ['e1', 'e2', 'e3'].map((k, i) => story({ key: k, interest: 1, topics: [k], pop: 0.9 - i * 0.01 }));
-    const ja = story({ key: 'j1', interest: 1, lang: 'ja', topics: ['j'], pop: 0.1 });
-    const strict = { ...layout, for_you: 2, for_you_min_local: 1 };
-    const keys = sectionKeys(
-      buildSections({ stories: [...en, ja], layout: strict, language: 'ja', today, now, seen: {} }),
-    );
-    expect(keys.forYou).toEqual(['e1', 'j1']);
-  });
-
-  it('shuffles Discover the same way all day', () => {
-    const pool = ['d1', 'd2', 'd3', 'd4'].map((k) => story({ key: k, pop: 0.9 }));
-    const pick = () =>
-      sectionKeys(
-        buildSections({ stories: pool, layout: { ...layout, discover: 4 }, language: 'en', today, now, seen: {} }),
-      );
-    expect(pick().discover).toEqual(pick().discover);
-    expect([...(pick().discover ?? [])].sort()).toEqual(['d1', 'd2', 'd3', 'd4']);
+    expect(sectionKeys(buildSections({ ...base, stories })).repos).toEqual(['en-warm']);
   });
 
   it('treats an undated platform story as fresh', () => {
-    const undated = story({ key: 'undated', interest: 1, publishedAt: null });
-    const keys = sectionKeys(buildSections({ stories: [undated], layout, language: 'en', today, now, seen: {} }));
-    expect(keys.forYou).toEqual(['undated']);
+    const undated = story({ key: 'undated', interest: 1, topics: ['ai'], publishedAt: null });
+    expect(sectionKeys(buildSections({ ...base, stories: [undated] })).ai).toEqual(['undated']);
   });
 
   it('keeps undated stories and ranks equal repositories by popularity', () => {
     const repo = (key: string, pop: number) =>
       story({ key, pop, publishedAt: null, appearances: from('github_new_repos', pop) });
-    const keys = sectionKeys(
-      buildSections({
-        stories: [repo('low', 0.5), repo('high', 0.9)],
-        layout: { ...layout, repos: 2 },
-        language: 'en',
-        today,
-        now,
-        seen: {},
-      }),
-    );
-    expect(keys.repos).toEqual(['high', 'low']);
+    const stories = [repo('low', 0.5), repo('high', 0.9)];
+    expect(sectionKeys(buildSections({ ...base, layout: { ...layout, repos: 2 }, stories })).repos).toEqual([
+      'high',
+      'low',
+    ]);
   });
 });

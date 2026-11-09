@@ -13,11 +13,13 @@ import {
   fetchLobsters,
   fetchQiita,
   fetchZenn,
+  TAG_FETCHERS,
+  type TagPlatform,
 } from './sources/platforms.ts';
 import { dataDir, loadScoreWindow, loadSeen, localDate, saveFeed, saveScoreSnapshot, saveSeen } from './store.ts';
-import type { Feed, RawItem } from './types.ts';
+import type { Feed, RawItem, Section } from './types.ts';
 
-/** Extra stories per section so that mutes applied in the browser can be backfilled */
+/** Extra stories per section, behind "Show more" and for refilling slots freed by mutes in the browser */
 const SPARE_PER_SECTION = 10;
 
 const PLATFORM_FETCHERS: Record<PlatformId, (now: Date) => Promise<RawItem[]>> = {
@@ -34,13 +36,36 @@ const PLATFORM_FETCHERS: Record<PlatformId, (now: Date) => Promise<RawItem[]>> =
 interface Job {
   label: string;
   run: () => Promise<RawItem[]>;
+  /**
+   * Whether the scores feed the platform's popularity scale. Tag lookups don't: they would fill it
+   * with small numbers and make every front-page story look more popular than it is.
+   */
+  calibrates: boolean;
+}
+
+function tagJobs(config: Config, now: Date): Job[] {
+  const tags = [...new Set(Object.values(config.topics).flatMap((t) => t.tags))];
+  return config.sources
+    .filter((id): id is TagPlatform => Object.hasOwn(TAG_FETCHERS, id))
+    .flatMap((id) =>
+      tags.map((tag) => ({ label: `${id} #${tag}`, run: () => TAG_FETCHERS[id](tag, now), calibrates: false })),
+    );
 }
 
 function buildJobs(config: Config, now: Date): Job[] {
   return [
-    ...config.sources.map((id) => ({ label: id, run: () => PLATFORM_FETCHERS[id](now) })),
-    ...config.official.feeds.map((f) => ({ label: f.name ?? f.url, run: () => fetchOfficialFeed(f.name, f.url) })),
-    ...config.official.releases.map((repo) => ({ label: repo, run: () => fetchGithubReleases(repo) })),
+    ...config.sources.map((id) => ({ label: id, run: () => PLATFORM_FETCHERS[id](now), calibrates: true })),
+    ...tagJobs(config, now),
+    ...config.official.feeds.map((f) => ({
+      label: f.name ?? f.url,
+      run: () => fetchOfficialFeed(f.name, f.url),
+      calibrates: false,
+    })),
+    ...config.official.releases.map((repo) => ({
+      label: repo,
+      run: () => fetchGithubReleases(repo),
+      calibrates: false,
+    })),
   ];
 }
 
@@ -61,19 +86,19 @@ export async function collect(
         const items = await job.run();
         counts[job.label] = items.length;
         log(`  ✓ ${job.label}: ${items.length}`);
-        return items;
+        return { items, calibrates: job.calibrates };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         log(`  ✗ ${job.label}: ${message}`);
         errors.push({ source: job.label, message });
-        return [];
+        return { items: [], calibrates: false };
       }
     }),
   );
-  const items = results.flat();
+  const items = results.flatMap((r) => r.items);
 
   const windows = new Map<string, number[]>();
-  for (const item of items) {
+  for (const item of results.filter((r) => r.calibrates).flatMap((r) => r.items)) {
     if (item.score !== null) windows.set(item.source, [...(windows.get(item.source) ?? []), item.score]);
   }
   await saveScoreSnapshot(today, Object.fromEntries(windows));
@@ -92,6 +117,7 @@ export async function collect(
     stories,
     layout: config.layout,
     language: config.language,
+    topics: Object.keys(config.topics),
     today,
     now,
     seen,
@@ -120,47 +146,31 @@ export async function collect(
 /** Text from a source's error message, safe inside a Markdown table cell */
 const tableCell = (text: string) => text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\s+/g, ' ');
 
-/** Markdown for the Actions run page: what was fetched, what each section got, which topics matched */
+/** Markdown for the Actions run page: what each section got and what was fetched */
 export function summarize(config: Config, feed: Feed, counts: Record<string, number>): string {
-  const visible = feed.sections.map((s) => ({ ...s, stories: s.stories.slice(0, s.limit) }));
-  const topicHits = new Map<string, number>(Object.keys(config.topics).map((t) => [t, 0]));
-  for (const s of visible.flatMap((sec) => sec.stories)) {
-    for (const t of s.topics) {
-      const hits = topicHits.get(t);
-      if (hits !== undefined) topicHits.set(t, hits + 1);
-    }
-  }
+  const shown = (s: Section) => Math.min(s.limit, s.stories.length);
   const lines = [
     `## ☕ TechCrema — ${feed.date}`,
     '',
     `Language \`${config.language}\`, time zone \`${config.timezone}\``,
     '',
-    '| Section | Shown | Spare |',
+    '| Section | Shown | More |',
     '|---|---:|---:|',
-    ...feed.sections.map(
-      (s) => `| ${s.id} | ${Math.min(s.limit, s.stories.length)} | ${Math.max(0, s.stories.length - s.limit)} |`,
-    ),
+    ...feed.sections.map((s) => `| ${s.title ?? s.id} | ${shown(s)} | ${s.stories.length - shown(s)} |`),
     '',
     '| Source | Items |',
     '|---|---:|',
     ...Object.entries(counts).map(([label, n]) => `| ${label} | ${n} |`),
     ...feed.errors.map((e) => `| ❌ ${e.source} | ${tableCell(e.message)} |`),
   ];
-  if (topicHits.size > 0) {
+  const quiet = feed.sections.filter((s) => s.title !== undefined && s.stories.length === 0).map((s) => s.title);
+  if (Object.keys(config.topics).length === 0) {
+    lines.push('', '> No `topics` configured, so the page only shows what is popular. Add a few to personalize it.');
+  } else if (quiet.length) {
     lines.push(
       '',
-      "| Topic | Stories on today's page |",
-      '|---|---:|',
-      ...[...topicHits].map(([t, n]) => `| ${t} | ${n} |`),
+      `> Topics with no stories today: ${quiet.join(', ')}. That is normal on quiet days; if it keeps happening, try broader keywords or tags.`,
     );
-    const unused = [...topicHits].filter(([, n]) => n === 0).map(([t]) => t);
-    if (unused.length)
-      lines.push(
-        '',
-        `> Topics with no stories today: ${unused.join(', ')}. That is normal on quiet days; if it keeps happening, try broader keywords.`,
-      );
-  } else {
-    lines.push('', '> No `topics` configured, so "For you" is empty. Add a few to personalize the page.');
   }
   return `${lines.join('\n')}\n`;
 }
@@ -177,10 +187,11 @@ export async function runCollect(env: NodeJS.ProcessEnv, log: (message: string) 
   if (env.GITHUB_STEP_SUMMARY) await appendFile(env.GITHUB_STEP_SUMMARY, summarize(config, feed, counts));
   log(`\n${feed.date}: wrote ${dataDir()}/feed.json`);
   for (const s of feed.sections) {
-    log(`  ${s.id}: ${Math.min(s.limit, s.stories.length)} (+${Math.max(0, s.stories.length - s.limit)} spare)`);
+    const shown = Math.min(s.limit, s.stories.length);
+    log(`  ${s.title ?? s.id}: ${shown} (+${s.stories.length - shown} more)`);
   }
   if (feed.errors.length) log(`  failed: ${feed.errors.map((e) => e.source).join(', ')}`);
-  if (topics.length === 0) log('\nTip: add `topics` or `presets` to get a personalized "For you" section.');
+  if (topics.length === 0) log('\nTip: add `topics` or `presets` to get a section for each of your interests.');
   // The scheduled smoke test sets this to fail loudly when a source breaks
   return env.TECHCREMA_STRICT === '1' && feed.errors.length > 0 ? 1 : 0;
 }

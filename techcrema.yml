@@ -8,9 +8,9 @@ title: TechCrema demo
 # Ready-made interests: frontend, node, rust, go, python, ai, devops, security, neovim
 presets: [ai, frontend, rust, devops]
 
-# Your own topics. A story whose title or tags contain a keyword lands in "For you".
+# Your own topics, one section each. A story whose title or tags contain a keyword lands in it.
 topics:
-  databases: [postgres, postgresql, sqlite, duckdb, database, databases]
+  Databases: [postgres, postgresql, sqlite, duckdb, database, databases]
 
 mute:
   keywords: [crypto, nft, web3]

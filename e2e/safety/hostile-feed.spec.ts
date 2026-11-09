@@ -10,7 +10,7 @@ test.describe('Hostile feed content', () => {
   test('HTML in a title is shown as text and never runs', async ({ reader, page }) => {
     const title = '<img src=x onerror="window.__xss = true">';
     await expect(reader.story(title)).toBeVisible();
-    await expect(reader.section('Trending').getByRole('img')).toHaveCount(0);
+    await expect(reader.section('Elsewhere').getByRole('img')).toHaveCount(0);
     expect(await page.evaluate(() => 'xss' in window || '__xss' in window)).toBe(false);
   });
 

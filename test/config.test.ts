@@ -11,14 +11,13 @@ describe('resolveConfig', () => {
     expect(c.language).toBe('en');
     expect(c.timezone).toBe('UTC');
     expect(c.sources).toEqual(['hackernews', 'lobsters', 'devto', 'huggingface', 'github']);
-    expect(c.layout.for_you_min_local).toBe(0);
+    expect(c.layout.per_topic).toBe(5);
   });
 
-  it('picks Japanese sources, time zone and quota for language: ja', () => {
+  it('picks Japanese sources and time zone for language: ja', () => {
     const c = resolveConfig({ language: 'ja' }, {});
     expect(c.sources.includes('hatena') && c.sources.includes('zenn')).toBeTruthy();
     expect(c.timezone).toBe('Asia/Tokyo');
-    expect(c.layout.for_you_min_local).toBe(3);
   });
 
   it('lets action inputs override the file, and treats empty inputs as unset', () => {
@@ -28,7 +27,7 @@ describe('resolveConfig', () => {
     );
     expect(c.language).toBe('ja');
     expect(c.sources).toEqual(['hackernews', 'github']);
-    expect(c.topics).toEqual({ rust: { weight: 1, keywords: ['rust'] } });
+    expect(c.topics).toEqual({ rust: { weight: 1, keywords: ['rust'], tags: ['rust'] } });
     expect(c.title).toBe('My feed');
   });
 
@@ -41,9 +40,14 @@ describe('resolveConfig', () => {
   });
 
   it('overrides only the layout values that are given', () => {
-    const c = resolveConfig({ layout: { for_you: 20 } }, {});
-    expect(c.layout.for_you).toBe(20);
+    const c = resolveConfig({ layout: { per_topic: 8 } }, {});
+    expect(c.layout.per_topic).toBe(8);
     expect(c.layout.trending).toBe(5);
+  });
+
+  it('still accepts layout settings that v1.0 had', () => {
+    const c = resolveConfig({ layout: { for_you: 20, for_you_min_local: 3, discover: 2 } }, {});
+    expect(c.layout).toEqual(resolveConfig({}, {}).layout);
   });
 
   it('explains what is wrong', () => {
@@ -57,10 +61,22 @@ describe('resolveConfig', () => {
 
 describe('parseTopics', () => {
   it('accepts the short list form, a comma string and the full form', () => {
-    expect(parseTopics('rust: [rust, cargo]\nweb: react, vue\ndb:\n  weight: 0.5\n  keywords: [postgres]')).toEqual({
-      rust: { weight: 1, keywords: ['rust', 'cargo'] },
-      web: { weight: 1, keywords: ['react', 'vue'] },
-      db: { weight: 0.5, keywords: ['postgres'] },
+    expect(parseTopics('Rust: [rust, cargo]\nweb: react, vue\ndb:\n  weight: 0.5\n  keywords: [postgres]')).toEqual({
+      Rust: { weight: 1, keywords: ['rust', 'cargo'], tags: ['rust'] },
+      web: { weight: 1, keywords: ['react', 'vue'], tags: ['web'] },
+      db: { weight: 0.5, keywords: ['postgres'], tags: ['db'] },
+    });
+  });
+
+  it('looks a topic up by its name as a tag unless tags are given', () => {
+    expect(parseTopics({ 'Node.js': { keywords: ['node'], tags: ['NodeJS', 'Deno'] } })['Node.js']?.tags).toEqual([
+      'nodejs',
+      'deno',
+    ]);
+    expect(parseTopics({ quiet: { keywords: ['x'], tags: [] } }).quiet?.tags).toEqual([]);
+    expect(parseTopics({ 'machine learning': ['ml'], 機械学習: ['ml'] })).toMatchObject({
+      'machine learning': { tags: [] },
+      機械学習: { tags: [] },
     });
   });
 
@@ -114,14 +130,14 @@ describe('topic presets', () => {
     const c = resolveConfig(
       {
         presets: 'rust, ai',
-        topics: { ai: ['claude'] },
+        topics: { AI: ['claude'] },
         official: ['Rust https://blog.rust-lang.org/feed.xml', 'my/repo'],
       },
       {},
     );
     expect(c.presets).toEqual(['rust', 'ai']);
-    expect(c.topics.rust?.keywords.includes('cargo')).toBeTruthy();
-    expect(c.topics.ai).toEqual({ weight: 1, keywords: ['claude'] });
+    expect(c.topics.Rust?.keywords.includes('cargo')).toBeTruthy();
+    expect(c.topics.AI).toEqual({ weight: 1, keywords: ['claude'], tags: ['ai'] });
     // The same feed URL from the preset and the user appears once, with the user's name
     expect(c.official.feeds.filter((f) => f.url === 'https://blog.rust-lang.org/feed.xml')).toEqual([
       { name: 'Rust', url: 'https://blog.rust-lang.org/feed.xml' },
@@ -160,7 +176,7 @@ describe('validation of hand-written settings', () => {
   });
 
   it('topics in the full form default to weight 1, and an empty value means none', () => {
-    expect(parseTopics({ db: { keywords: ['sql'] } })).toEqual({ db: { weight: 1, keywords: ['sql'] } });
+    expect(parseTopics({ db: { keywords: ['sql'] } })).toEqual({ db: { weight: 1, keywords: ['sql'], tags: ['db'] } });
     expect(parseTopics('')).toEqual({});
     const odd = parseTopics(JSON.parse('{"__proto__": ["x"]}'));
     expect(Object.getPrototypeOf(odd)).toBe(Object.prototype);

@@ -23,7 +23,7 @@ A complete workflow with every common option is in [examples/workflow.yml](../ex
 ## Presets
 
 A preset adds a topic with a tested keyword list, plus the official blogs and releases worth following for it.
-Combine them freely and add your own `topics` on top; a topic of yours with the same name replaces the preset's.
+Combine them freely and add your own `topics` on top; a topic of yours with the same name (e.g. `AI`) replaces the preset's.
 
 ```yaml
 with:
@@ -46,18 +46,24 @@ Missing one? Presets live in [`src/presets.ts`](../src/presets.ts); pull request
 
 ## Topics
 
-A story goes to **For you** when its title or tags contain any of a topic's keywords.
+Each topic gets its own section on the page, in the order you write them, titled with the topic's name.
+A story belongs to a topic when its title or tags contain any of the topic's keywords, or it carries one of the topic's tags.
 
 ```yaml
 topics: |
-  rust: [rust, cargo]                                # short form, weight 1
-  frontend: react, vue, svelte                       # comma-separated works too
-  ai: { weight: 0.8, keywords: [llm, agents, mcp] }  # lower weight ranks a little lower
+  Rust: [rust, cargo]                                  # short form, weight 1
+  Frontend: react, vue, svelte                         # comma-separated works too
+  AI: { weight: 0.8, keywords: [llm, agents, mcp] }    # a story matching AI and Rust goes under Rust
+  Node.js: { keywords: [node, npm], tags: [nodejs, node] }
 ```
 
 - ASCII keywords match whole words: `go` does not match `google`
 - Other keywords (Japanese, for example) match anywhere in the text
 - Matching ignores case
+- A story that matches several topics is listed once, under the one with the highest weight (the first one written, on a tie)
+
+**Tags.** Front pages rarely carry niche topics, so TechCrema also looks each topic up by tag on Zenn, Qiita, dev.to and Lobsters (those in your `sources`), and keeps stories with at least 3 reactions from the last 4 days.
+By default the tag is the topic's name (`Node.js` → `nodejs`). Set `tags` to look up others, or `tags: []` to skip the lookup. A name with spaces or non-ASCII characters has no default tag.
 
 ## Using a config file
 
@@ -70,18 +76,18 @@ steps:
     uses: kamegoro/techcrema@v1 # reads ./techcrema.yml
 ```
 
-The file also accepts `layout`, which sets how many stories each section shows:
+The file also accepts `layout`, which sets how many stories each section shows before "Show more":
 
 ```yaml
 layout:
-  for_you: 10            # stories in "For you"
-  for_you_min_local: 0   # keep at least this many in your language in "For you"
-  trending: 5
-  discover: 3
+  per_topic: 5           # stories per topic
+  trending: 5            # "Elsewhere": popular stories outside your topics
   repos: 3
   official_days: 3       # how far back "Official" looks
-  max_source_ratio: 0.4  # no platform takes more than 40% of a section
+  max_source_ratio: 0.4  # no platform takes more than 40% of a section, unless nothing else is left
 ```
+
+`for_you`, `for_you_min_local` and `discover` from v1.0 are still accepted and ignored.
 
 ## Sources
 

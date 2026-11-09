@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { collect, runCollect, summarize } from '../src/collect.ts';
 import { resolveConfig } from '../src/config.ts';
 import { fetchGithubReleases, fetchOfficialFeed } from '../src/sources/official.ts';
-import { fetchHackerNews, fetchLobsters } from '../src/sources/platforms.ts';
+import { fetchHackerNews, fetchLobsters, TAG_FETCHERS } from '../src/sources/platforms.ts';
 import { loadFeed, loadScoreWindow, loadSeen, saveScoreSnapshot, saveSeen } from '../src/store.ts';
 import type { Feed, RawItem, Story } from '../src/types.ts';
 
@@ -20,6 +20,7 @@ vi.mock('../src/sources/platforms.ts', () => {
     fetchHatena: none,
     fetchZenn: none,
     fetchQiita: none,
+    TAG_FETCHERS: { zenn: none, qiita: none, devto: none, lobsters: vi.fn() },
   };
 });
 vi.mock('../src/sources/official.ts', () => ({ fetchOfficialFeed: vi.fn(), fetchGithubReleases: vi.fn() }));
@@ -49,6 +50,9 @@ beforeEach(async () => {
     item({ title: 'Something else', url: 'https://b.dev/else', score: 50 }),
   ]);
   vi.mocked(fetchLobsters).mockRejectedValue(new Error('HTTP 503'));
+  vi.mocked(TAG_FETCHERS.lobsters).mockResolvedValue([
+    item({ source: 'lobsters', title: 'Borrow checker notes', url: 'https://c.dev/notes', score: 4, tags: ['rust'] }),
+  ]);
   vi.mocked(fetchOfficialFeed).mockResolvedValue([
     item({
       source: 'official',
@@ -77,7 +81,7 @@ describe('collect', () => {
     const counts: Record<string, number> = {};
     const log = vi.fn();
     const feed = await collect(config(), log, counts);
-    expect(counts).toEqual({ hackernews: 2, 'https://nodejs.org/feed.xml': 1, 'Node.js': 1 });
+    expect(counts).toEqual({ hackernews: 2, 'lobsters #rust': 1, 'https://nodejs.org/feed.xml': 1, 'Node.js': 1 });
     expect(feed.errors).toEqual([
       { source: 'lobsters', message: 'HTTP 503' },
       { source: 'nodejs/node', message: 'rate limited' },
@@ -87,8 +91,8 @@ describe('collect', () => {
 
   it('ranks, applies mutes from the settings and writes the feed', async () => {
     const feed = await collect(config());
-    const byId = Object.fromEntries(feed.sections.map((s) => [s.id, s.stories.map((st) => st.title)]));
-    expect(byId.forYou).toEqual(['Rust 2.0 released']);
+    const byId = Object.fromEntries(feed.sections.map((s) => [s.title ?? s.id, s.stories.map((st) => st.title)]));
+    expect(byId.rust).toEqual(['Rust 2.0 released', 'Borrow checker notes']);
     expect(byId.official).toEqual(['Node.js 26.1']);
     expect(JSON.stringify(feed)).not.toContain('Something else');
     expect(feed).toMatchObject({ date: TODAY, language: 'en', title: 'TechCrema', officialDays: 3 });
@@ -97,17 +101,26 @@ describe('collect', () => {
 
   it("saves today's scores and compares them with earlier days", async () => {
     await saveScoreSnapshot('2026-11-07', { hackernews: [1000, 2000], lobsters: [10] });
+    const listed = await fetchHackerNews();
+    // A story without a score (e.g. a Hatena entry missing its count) stays out of the scale
+    vi.mocked(fetchHackerNews).mockResolvedValue([...listed, item({ url: 'https://d.dev/unscored', score: null })]);
     const feed = await collect(config());
     const rust = feed.sections.flatMap((s) => s.stories).find((s) => s.title === 'Rust 2.0 released');
     // 500 among [1000, 2000, 500, 50]: one lower, itself counted half → (1 + 0.5) / 4
     expect(rust?.appearances[0]?.percentile).toBe(0.375);
+    // Scores from the tag lookup don't go into the scale
     expect(await loadScoreWindow('2026-11-09')).toEqual({ hackernews: [1000, 2000, 500, 50], lobsters: [10] });
   });
 
   it('remembers what was shown so it is not repeated tomorrow', async () => {
     await saveSeen({ older: { date: '2026-11-01', pop: 0.2 } });
     await collect(config());
-    expect(Object.keys(await loadSeen(TODAY)).sort()).toEqual(['a.dev/rust', 'nodejs.org/26.1', 'older']);
+    expect(Object.keys(await loadSeen(TODAY)).sort()).toEqual([
+      'a.dev/rust',
+      'c.dev/notes',
+      'nodejs.org/26.1',
+      'older',
+    ]);
   });
 });
 
@@ -154,20 +167,28 @@ describe('summarize', () => {
     language: 'en',
     title: 'TechCrema',
     officialDays: 3,
-    sections: [{ id: 'forYou', limit: 1, stories: [story('a', ['rust']), story('b', ['go'])] }],
+    sections: [
+      { id: 'topic-0', title: 'rust', limit: 1, stories: [story('a', ['rust']), story('b', ['rust'])] },
+      { id: 'topic-1', title: 'go', limit: 1, stories: [] },
+      { id: 'trending', limit: 2, stories: [] },
+    ],
     errors: [{ source: 'lobsters', message: 'HTTP 503 | down\\ |\nnext line' }],
   };
 
-  it('reports sections, sources, failures and topics without matches', () => {
+  it('reports sections, sources, failures and topics without stories', () => {
     const config = resolveConfig({ topics: { rust: ['rust'], go: ['go'] } }, {});
     const md = summarize(config, feed, { hackernews: 30 });
-    expect(md).toMatch(/\| forYou \| 1 \| 1 \|/);
+    expect(md).toMatch(/\| rust \| 1 \| 1 \|/);
+    expect(md).toMatch(/\| trending \| 0 \| 0 \|/);
     expect(md).toMatch(/\| hackernews \| 30 \|/);
     // Pipes, backslashes and line breaks from a remote error message can't break out of the table cell
     expect(md).toContain('| ❌ lobsters | HTTP 503 \\| down\\\\ \\| next line |');
-    expect(md).toMatch(/\| rust \| 1 \|/);
-    // "go" only appears in a spare story, which is not on the page
     expect(md).toMatch(/Topics with no stories today: go\./);
+  });
+
+  it('says nothing about topics when every topic has stories', () => {
+    const config = resolveConfig({ topics: { rust: ['rust'] } }, {});
+    expect(summarize(config, { ...feed, sections: feed.sections.slice(0, 1) }, {})).not.toMatch(/no stories today/);
   });
 
   it('suggests adding topics when there are none', () => {

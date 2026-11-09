@@ -13,7 +13,6 @@ const SOURCE_LABELS = {
   official: 'Official',
   github_release: 'Release',
 };
-const LANG_LABELS = { ja: 'JP', en: 'EN', zh: 'ZH' };
 const STATE_KEY = 'techcrema-state-v1';
 /** Keep at most this many read marks (oldest dropped first) so localStorage doesn't fill up */
 const MAX_KEYS = 3000;
@@ -28,6 +27,8 @@ const ICONS = {
 /** @type {{feed: any, state: {read: string[], later: any[], mute: {keywords: string[], domains: string[]}}}} */
 const data = { feed: null, state: loadState() };
 let loadError = null;
+/** Sections opened with "Show more" (until the page is reloaded) */
+const expanded = new Set();
 
 const $ = (id) => document.getElementById(id);
 
@@ -126,14 +127,17 @@ function isMuted(story, mute) {
   return mute.keywords.some((k) => keywordMatcher(k)(text));
 }
 
-/** Drops muted stories, then keeps the first `limit` of each section */
+/** Drops muted stories, then keeps the first `limit` of each section unless it was expanded; `more` counts the rest */
 function visibleSections(feed) {
   const mute = data.state.mute;
-  return feed.sections.map((s) => ({
-    ...s,
-    stories: s.stories.filter((st) => !isMuted(st, mute)).slice(0, s.limit ?? s.stories.length),
-  }));
+  return feed.sections.map((s) => {
+    const stories = s.stories.filter((st) => !isMuted(st, mute));
+    const shown = expanded.has(s.id) ? stories : stories.slice(0, s.limit ?? stories.length);
+    return { ...s, stories: shown, more: stories.length - shown.length };
+  });
 }
+
+const sectionTitle = (section) => section.title ?? t(`section.${section.id}`);
 
 async function load() {
   try {
@@ -267,7 +271,7 @@ function renderSectionNav(sections) {
       h(
         'a',
         { class: 'chip', href: `#section-${s.id}`, onclick: (e) => jumpTo(e, s.id) },
-        t(`section.${s.id}`),
+        sectionTitle(s),
         h('span', { class: 'chip-count' }, s.stories.length),
       ),
     ),
@@ -282,72 +286,52 @@ function jumpTo(event, id) {
   target.querySelector('h2')?.focus({ preventScroll: true });
 }
 
-function sourceBadge(a) {
-  const label =
-    a.source === 'hatena' || a.source === 'official' ? t(`source.${a.source}`) : (SOURCE_LABELS[a.source] ?? a.source);
-  const children = [h('span', { class: 'badge-dot' }), label];
+/** Where the story is popular, e.g. "HN 668 pt", linking to the discussion when there is one */
+function source(a) {
+  const label = a.source === 'hatena' ? t('source.hatena') : (SOURCE_LABELS[a.source] ?? a.source);
+  const children = [h('span', { class: 'source-dot' }), label];
   if (a.score !== null && a.score !== undefined) {
-    children.push(h('span', { class: 'badge-score' }, formatScore(a.score)));
-    if (a.scoreLabel && a.scoreLabel !== '★') children.push(h('span', { class: 'badge-unit' }, a.scoreLabel));
-    if (a.scoreLabel === '★') children.splice(2, 0, '★');
+    // The unit (pt, likes…) is only in the accessible name; on screen the number next to the site is enough
+    const star = a.scoreLabel === '★' ? '★' : '';
+    children.push(' ', h('span', { class: 'source-score' }, `${star}${formatScore(a.score)}`));
   }
   const href = a.discussionUrl ? safeUrl(a.discussionUrl) : null;
-  if (href) {
-    children.push(icon('comment'));
-    return h(
-      'a',
-      {
-        class: 'badge',
-        href,
-        target: '_blank',
-        rel: 'noopener noreferrer',
-        dataset: { source: a.source },
-        'aria-label': t('discussion', { source: label, score: `${a.score ?? ''} ${a.scoreLabel ?? ''}`.trim() }),
-      },
-      ...children,
-    );
+  if (!href) {
+    const title = a.score === null || a.score === undefined ? undefined : `${a.score} ${a.scoreLabel ?? ''}`.trim();
+    return h('span', { class: 'source', title, dataset: { source: a.source } }, ...children);
   }
-  return h('span', { class: 'badge', dataset: { source: a.source } }, ...children);
+  return h(
+    'a',
+    {
+      class: 'source',
+      href,
+      target: '_blank',
+      rel: 'noopener noreferrer',
+      dataset: { source: a.source },
+      'aria-label': t('discussion', { source: label, score: `${a.score ?? ''} ${a.scoreLabel ?? ''}`.trim() }),
+    },
+    ...children,
+    icon('comment'),
+  );
 }
 
 /** One story as an <article> named by its title. idPrefix keeps the heading ids unique on the page. */
-function card(story, idPrefix) {
+function storyItem(story, idPrefix) {
   const s = data.state;
   const later = s.later.some((x) => x.key === story.key);
   const read = s.read.includes(story.key);
   const href = safeUrl(story.url);
-
-  const top = h(
-    'div',
-    { class: 'card-top' },
-    story.appearances.map(sourceBadge),
-    story.publisher && story.appearances.every((a) => a.source === 'official')
-      ? h('span', { class: 'badge badge-publisher' }, story.publisher)
-      : null,
-    ['major', 'minor', 'patch'].includes(story.releaseKind)
-      ? h(
-          'span',
-          { class: `badge${story.releaseKind === 'major' ? ' badge-accent' : ''}` },
-          t(`release.${story.releaseKind}`),
-        )
-      : null,
-    story.groupedCount ? h('span', { class: 'badge' }, t('grouped', { n: story.groupedCount })) : null,
-    story.resurfaced ? h('span', { class: 'badge badge-accent' }, t('resurfaced')) : null,
-    // Only worth pointing out when the story isn't in the page's language
-    story.lang === document.documentElement.lang
-      ? null
-      : h('span', { class: 'badge badge-lang', title: t('language') }, LANG_LABELS[story.lang] ?? story.lang),
-  );
+  const official = story.appearances.every((a) => a.source === 'official');
 
   const titleId = `${idPrefix}-title`;
   const title = h(
     'h3',
-    { class: 'card-title', id: titleId },
+    { class: 'story-title', id: titleId },
     href
       ? h(
           'a',
           {
-            class: 'card-link',
+            class: 'story-link',
             href,
             target: '_blank',
             rel: 'noopener noreferrer',
@@ -360,17 +344,33 @@ function card(story, idPrefix) {
 
   const meta = h(
     'div',
-    { class: 'card-meta' },
+    { class: 'story-meta' },
     // Read state is shown by dimming; say it in words too, for screen readers
     read ? h('span', { class: 'visually-hidden' }, t('read')) : null,
-    h('span', { class: 'card-domain' }, story.domain),
+    official
+      ? h(
+          'span',
+          { class: 'source', dataset: { source: 'official' } },
+          h('span', { class: 'source-dot' }),
+          story.publisher ?? t('source.official'),
+        )
+      : story.appearances.map(source),
+    ['major', 'minor', 'patch'].includes(story.releaseKind)
+      ? h(
+          'span',
+          { class: `tag${story.releaseKind === 'major' ? ' tag-accent' : ''}` },
+          t(`release.${story.releaseKind}`),
+        )
+      : null,
+    story.resurfaced ? h('span', { class: 'tag tag-accent' }, t('resurfaced')) : null,
+    story.groupedCount ? h('span', {}, t('grouped', { n: story.groupedCount })) : null,
+    official ? null : h('span', { class: 'story-domain' }, story.domain),
     story.publishedAt ? h('time', { datetime: story.publishedAt }, timeAgo(story.publishedAt)) : null,
-    story.topics.map((t) => h('span', { class: 'topic' }, `#${t}`)),
   );
 
   const actions = h(
     'div',
-    { class: 'card-actions' },
+    { class: 'story-actions' },
     h(
       'button',
       {
@@ -401,10 +401,9 @@ function card(story, idPrefix) {
     {},
     h(
       'article',
-      { class: `card${read ? ' is-read' : ''}`, 'aria-labelledby': titleId },
-      top,
+      { class: `story${read ? ' is-read' : ''}`, 'aria-labelledby': titleId },
       title,
-      h('div', { class: 'card-bottom' }, meta, actions),
+      h('div', { class: 'story-footer' }, meta, actions),
     ),
   );
 }
@@ -423,7 +422,7 @@ function renderToday(main) {
     main.append(
       h(
         'ul',
-        { class: 'cards', 'aria-hidden': 'true' },
+        { class: 'stories', 'aria-hidden': 'true' },
         [1, 2, 3].map(() => h('li', { class: 'skeleton' })),
       ),
     );
@@ -436,6 +435,8 @@ function renderToday(main) {
     main.append(emptyState(t('empty.today'), t('empty.today.text')));
   }
   for (const section of sections) {
+    const description =
+      section.title === undefined ? t(`section.${section.id}.desc`, { days: feed.officialDays ?? 3 }) : null;
     main.append(
       h(
         'section',
@@ -443,19 +444,29 @@ function renderToday(main) {
         h(
           'div',
           { class: 'section-header' },
-          h('h2', { class: 'section-title', id: `title-${section.id}`, tabindex: '-1' }, t(`section.${section.id}`)),
-          h('p', { class: 'section-description' }, t(`section.${section.id}.desc`, { days: feed.officialDays ?? 3 })),
+          h('h2', { class: 'section-title', id: `title-${section.id}`, tabindex: '-1' }, sectionTitle(section)),
+          description ? h('p', { class: 'section-description' }, description) : null,
         ),
-        // Official and New repos only need a glance at the headline, so they use a compact layout
+        // role="list": Safari drops list semantics from lists styled with list-style: none
         h(
           'ul',
-          // role="list": Safari drops list semantics from lists styled with list-style: none
-          {
-            class: `cards${section.id === 'official' || section.id === 'repos' ? ' cards-compact' : ''}`,
-            role: 'list',
-          },
-          section.stories.map((story, i) => card(story, `${section.id}-${i}`)),
+          { class: 'stories', role: 'list' },
+          section.stories.map((story, i) => storyItem(story, `${section.id}-${i}`)),
         ),
+        section.more > 0
+          ? h(
+              'button',
+              {
+                class: 'more',
+                type: 'button',
+                onclick: () => {
+                  expanded.add(section.id);
+                  render();
+                },
+              },
+              t('more', { n: section.more }),
+            )
+          : null,
       ),
     );
   }
@@ -479,8 +490,8 @@ function renderLater(main) {
       { class: 'section', 'aria-label': t('tab.later') },
       h(
         'ul',
-        { class: 'cards', role: 'list' },
-        list.map((story, i) => card(story, `later-${i}`)),
+        { class: 'stories', role: 'list' },
+        list.map((story, i) => storyItem(story, `later-${i}`)),
       ),
     ),
   );

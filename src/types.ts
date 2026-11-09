@@ -38,6 +38,7 @@ export interface Story {
   pop: number;
   /** Interest 0-1 (highest weight among matched topics) */
   interest: number;
+  /** Matched topics, heaviest first; the story is listed under the first one */
   topics: string[];
   /** Matched keywords (offered as mute suggestions) */
   matchedKeywords: string[];
@@ -57,10 +58,13 @@ export interface Appearance {
   percentile: number | null;
 }
 
-export type SectionId = 'official' | 'forYou' | 'trending' | 'discover' | 'repos';
+/** One section per topic (`topic-0`, `topic-1`, … in the order they are configured) */
+export type SectionId = 'official' | 'trending' | 'repos' | `topic-${number}`;
 
 export interface Section {
   id: SectionId;
+  /** Topic sections are titled with the topic's name; the others are translated in the browser */
+  title?: string;
   /**
    * How many stories to show. `stories` may hold more (spares for mutes);
    * the browser drops muted ones and shows the first `limit`.
@@ -80,17 +84,22 @@ export interface Feed {
   errors: { source: string; message: string }[];
 }
 
+export interface Topic {
+  weight: number;
+  keywords: string[];
+  /** Tags looked up on Zenn, Qiita, dev.to and Lobsters; a story with one of them belongs to the topic */
+  tags: string[];
+}
+
 export interface InterestConfig {
-  topics: Record<string, { weight: number; keywords: string[] }>;
+  topics: Record<string, Topic>;
 }
 
 export interface LayoutConfig {
   official_days: number;
-  for_you: number;
-  /** Minimum number of stories in the page's language in "For you" */
-  for_you_min_local: number;
+  /** Stories shown per topic before "Show more" */
+  per_topic: number;
   trending: number;
-  discover: number;
   repos: number;
   max_source_ratio: number;
 }

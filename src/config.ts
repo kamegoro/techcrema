@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { PRESET_NAMES, PRESETS_BY_NAME, type PresetName } from './presets.ts';
-import type { LayoutConfig } from './types.ts';
+import type { LayoutConfig, Topic } from './types.ts';
 
 export const LANGUAGES = ['en', 'ja'] as const;
 export type Language = (typeof LANGUAGES)[number];
@@ -21,10 +21,7 @@ export const PLATFORMS = [
 ] as const;
 export type PlatformId = (typeof PLATFORMS)[number];
 
-export interface Topic {
-  weight: number;
-  keywords: string[];
-}
+export type { Topic };
 
 export interface Config {
   language: Language;
@@ -42,13 +39,14 @@ export interface Config {
 
 const BASE_LAYOUT: LayoutConfig = {
   official_days: 3,
-  for_you: 10,
-  for_you_min_local: 0,
+  per_topic: 5,
   trending: 5,
-  discover: 3,
   repos: 3,
   max_source_ratio: 0.4,
 };
+
+/** Layout settings from v1.0 that no longer exist; still accepted so older config files keep working */
+const RETIRED_LAYOUT_KEYS = new Set(['for_you', 'for_you_min_local', 'discover']);
 
 export const LANGUAGE_DEFAULTS: Record<Language, Config> = {
   en: {
@@ -71,8 +69,7 @@ export const LANGUAGE_DEFAULTS: Record<Language, Config> = {
     topics: {},
     mute: { keywords: [], domains: [] },
     official: { feeds: [], releases: [] },
-    // Keep at least 3 Japanese articles in "For you" even when HN dominates
-    layout: { ...BASE_LAYOUT, for_you_min_local: 3 },
+    layout: BASE_LAYOUT,
   },
 };
 
@@ -112,20 +109,28 @@ export function parseSources(value: unknown): PlatformId[] {
   return [...new Set(ids)] as PlatformId[];
 }
 
+/** A topic is looked up by its own name as a tag ("Node.js" → nodejs), unless the name has spaces or non-ASCII */
+export function defaultTags(name: string): string[] {
+  return /^[\x21-\x7e]+$/.test(name) ? [name.toLowerCase()] : [];
+}
+
 /**
  * topics accepts both a short and a full form:
- *   rust: [rust, cargo]                 # weight 1
- *   rust: rust, cargo
- *   rust: { weight: 0.8, keywords: [rust, cargo] }
+ *   Rust: [rust, cargo]                 # weight 1, tags [rust]
+ *   Rust: rust, cargo
+ *   Rust: { weight: 0.8, keywords: [rust, cargo], tags: [rust, cargo] }
  */
-function parseTopic(def: unknown, field: string): Topic {
-  if (!def || typeof def !== 'object' || Array.isArray(def)) return { weight: 1, keywords: list(def, field) };
-  const d = def as { weight?: unknown; keywords?: unknown };
+function parseTopic(name: string, def: unknown, field: string): Topic {
+  if (!def || typeof def !== 'object' || Array.isArray(def)) {
+    return { weight: 1, keywords: list(def, field), tags: defaultTags(name) };
+  }
+  const d = def as { weight?: unknown; keywords?: unknown; tags?: unknown };
   const weight = d.weight === undefined ? 1 : Number(d.weight);
   if (!Number.isFinite(weight) || weight <= 0 || weight > 1) {
     throw new ConfigError(`${field}.weight: expected a number between 0 and 1`);
   }
-  return { weight, keywords: list(d.keywords, `${field}.keywords`) };
+  const tags = d.tags === undefined ? defaultTags(name) : list(d.tags, `${field}.tags`).map((t) => t.toLowerCase());
+  return { weight, keywords: list(d.keywords, `${field}.keywords`), tags };
 }
 
 export function parseTopics(value: unknown): Record<string, Topic> {
@@ -138,7 +143,7 @@ export function parseTopics(value: unknown): Record<string, Topic> {
   return Object.fromEntries(
     Object.entries(raw as Record<string, unknown>).map(([name, def]) => {
       const field = `topics.${name}`;
-      const topic = parseTopic(def, field);
+      const topic = parseTopic(name, def, field);
       if (topic.keywords.length === 0) throw new ConfigError(`${field}: needs at least one keyword`);
       return [name, topic];
     }),
@@ -205,6 +210,7 @@ function parseLayout(value: unknown, base: LayoutConfig): LayoutConfig {
   if (typeof value !== 'object' || Array.isArray(value)) throw new ConfigError('layout: expected a mapping');
   const layout = { ...base };
   for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+    if (RETIRED_LAYOUT_KEYS.has(key)) continue;
     if (!Object.hasOwn(base, key))
       throw new ConfigError(`layout.${key}: unknown setting (available: ${Object.keys(base).join(', ')})`);
     const n = Number(v);

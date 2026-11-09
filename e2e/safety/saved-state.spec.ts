@@ -11,7 +11,7 @@ test.describe('Saved state', () => {
       '{"liked": 5, "mute": {"domains": [1, null]}',
     );
     await reader.open(makeFeed());
-    await reader.expectStories('For you', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
+    await reader.expectStories('Rust', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
     expect(errors).toEqual([]);
   });
 
@@ -21,7 +21,7 @@ test.describe('Saved state', () => {
       JSON.stringify({ liked: 'a', read: [1, 2], later: [{ key: 1 }], mute: 'alpha.dev' }),
     );
     await reader.open(makeFeed());
-    await reader.expectStories('For you', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
+    await reader.expectStories('Rust', ['Rust ownership explained', 'Writing a Rust CLI', 'Another alpha post']);
     await reader.expectTabCount('Later', null);
     await reader.expectTabCount('Muted', null);
   });

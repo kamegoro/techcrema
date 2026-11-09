@@ -10,6 +10,7 @@ import {
   fetchQiita,
   fetchZenn,
   hatenaEntryUrl,
+  TAG_FETCHERS,
 } from '../src/sources/platforms.ts';
 
 vi.mock('../src/http.ts', () => ({
@@ -147,5 +148,68 @@ describe('fetchGithubNewRepos', () => {
     expect(json).toHaveBeenCalledWith(expect.stringContaining(encodeURIComponent('created:>2026-11-01')), {
       Accept: 'application/vnd.github+json',
     });
+  });
+});
+
+describe('TAG_FETCHERS', () => {
+  const zenn = (liked: number) => ({
+    title: `Z${liked}`,
+    path: `/u/articles/${liked}`,
+    liked_count: liked,
+    published_at: 'p',
+    article_type: 'tech',
+  });
+
+  it('Zenn: asks for the topic by its slug, drops posts with almost no likes and adds the tag', async () => {
+    json.mockResolvedValue({ articles: [zenn(12), zenn(1)] });
+    expect(await TAG_FETCHERS.zenn('Node.js', now)).toEqual([
+      expect.objectContaining({ score: 12, tags: ['Node.js'] }),
+    ]);
+    expect(json).toHaveBeenCalledWith('https://zenn.dev/api/articles?topicname=nodejs&order=latest&count=30');
+  });
+
+  it('skips tags that have no letters or digits to look up', async () => {
+    expect(await TAG_FETCHERS.zenn('テスト', now)).toEqual([]);
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  it('Qiita: searches the tag as written, within the last few days', async () => {
+    json.mockResolvedValue([
+      { title: 'Q', url: 'https://qiita.com/q', likes_count: 5, created_at: 'c', tags: [{ name: 'Node.js' }] },
+      { title: 'R', url: 'https://qiita.com/r', likes_count: 0, created_at: 'c', tags: [] },
+    ]);
+    expect(await TAG_FETCHERS.qiita('Node.js', now)).toEqual([
+      expect.objectContaining({ title: 'Q', tags: ['Node.js', 'Node.js'] }),
+    ]);
+    expect(json).toHaveBeenCalledWith(
+      expect.stringContaining(encodeURIComponent('tag:Node.js created:>2026-11-04')),
+      {},
+    );
+  });
+
+  it("dev.to: asks for the tag's top posts of the last few days", async () => {
+    json.mockResolvedValue([
+      { title: 'D', url: 'https://dev.to/d', public_reactions_count: 9, published_timestamp: 'p', tag_list: ['node'] },
+    ]);
+    expect(await TAG_FETCHERS.devto('node', now)).toEqual([expect.objectContaining({ score: 9 })]);
+    expect(json).toHaveBeenCalledWith('https://dev.to/api/articles?tag=node&top=4&per_page=30');
+  });
+
+  it('Lobsters: only asks for tags it has, fetching its tag list once', async () => {
+    const story = {
+      title: 'L',
+      url: 'https://a.dev/l',
+      score: 7,
+      created_at: 'c',
+      tags: ['java'],
+      comments_url: 'https://lobste.rs/s/l',
+    };
+    json.mockImplementation(async (url: string) => (url.endsWith('tags.json') ? [{ tag: 'java' }] : [story]));
+    expect(await TAG_FETCHERS.lobsters('Java', now)).toEqual([expect.objectContaining({ title: 'L' })]);
+    expect(await TAG_FETCHERS.lobsters('e2e', now)).toEqual([]);
+    expect(json.mock.calls.map(([url]) => url)).toEqual([
+      'https://lobste.rs/tags.json',
+      'https://lobste.rs/t/java.json',
+    ]);
   });
 });

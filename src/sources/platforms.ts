@@ -68,9 +68,8 @@ interface ZennArticle {
   article_type: string;
 }
 
-export async function fetchZenn(): Promise<RawItem[]> {
-  const data = await fetchJson<{ articles: ZennArticle[] }>('https://zenn.dev/api/articles?order=daily&count=60');
-  return data.articles.map((a) => ({
+function zennItem(a: ZennArticle): RawItem {
+  return {
     source: 'zenn',
     title: a.title,
     url: `https://zenn.dev${a.path}`,
@@ -78,7 +77,12 @@ export async function fetchZenn(): Promise<RawItem[]> {
     scoreLabel: 'likes',
     tags: a.article_type === 'idea' ? ['idea'] : [],
     publishedAt: a.published_at,
-  }));
+  };
+}
+
+export async function fetchZenn(): Promise<RawItem[]> {
+  const data = await fetchJson<{ articles: ZennArticle[] }>('https://zenn.dev/api/articles?order=daily&count=60');
+  return data.articles.map(zennItem);
 }
 
 interface QiitaItem {
@@ -89,12 +93,10 @@ interface QiitaItem {
   tags: { name: string }[];
 }
 
-export async function fetchQiita(now: Date): Promise<RawItem[]> {
-  const since = isoDaysAgo(3, now).slice(0, 10);
-  const query = encodeURIComponent(`created:>${since} stocks:>2`);
+async function searchQiita(query: string, perPage: number): Promise<RawItem[]> {
   const token = process.env.QIITA_TOKEN;
   const items = await fetchJson<QiitaItem[]>(
-    `https://qiita.com/api/v2/items?per_page=100&query=${query}`,
+    `https://qiita.com/api/v2/items?per_page=${perPage}&query=${encodeURIComponent(query)}`,
     token ? { Authorization: `Bearer ${token}` } : {},
   );
   return items.map((i) => ({
@@ -108,6 +110,10 @@ export async function fetchQiita(now: Date): Promise<RawItem[]> {
   }));
 }
 
+export function fetchQiita(now: Date): Promise<RawItem[]> {
+  return searchQiita(`created:>${isoDaysAgo(3, now).slice(0, 10)} stocks:>2`, 100);
+}
+
 interface DevtoArticle {
   title: string;
   url: string;
@@ -116,8 +122,8 @@ interface DevtoArticle {
   tag_list: string[];
 }
 
-export async function fetchDevto(): Promise<RawItem[]> {
-  const items = await fetchJson<DevtoArticle[]>('https://dev.to/api/articles?top=1&per_page=60');
+async function devtoArticles(url: string): Promise<RawItem[]> {
+  const items = await fetchJson<DevtoArticle[]>(url);
   return items.map((a) => ({
     source: 'devto',
     title: a.title,
@@ -129,6 +135,10 @@ export async function fetchDevto(): Promise<RawItem[]> {
   }));
 }
 
+export function fetchDevto(): Promise<RawItem[]> {
+  return devtoArticles('https://dev.to/api/articles?top=1&per_page=60');
+}
+
 interface LobstersStory {
   title: string;
   url: string;
@@ -138,8 +148,8 @@ interface LobstersStory {
   comments_url: string;
 }
 
-export async function fetchLobsters(): Promise<RawItem[]> {
-  const items = await fetchJson<LobstersStory[]>('https://lobste.rs/hottest.json');
+async function lobstersStories(url: string): Promise<RawItem[]> {
+  const items = await fetchJson<LobstersStory[]>(url);
   return items.map((s) => ({
     source: 'lobsters',
     title: s.title,
@@ -150,6 +160,10 @@ export async function fetchLobsters(): Promise<RawItem[]> {
     tags: s.tags,
     publishedAt: s.created_at,
   }));
+}
+
+export function fetchLobsters(): Promise<RawItem[]> {
+  return lobstersStories('https://lobste.rs/hottest.json');
 }
 
 interface HfDailyPaper {
@@ -199,3 +213,50 @@ export async function fetchGithubNewRepos(now: Date): Promise<RawItem[]> {
     publishedAt: r.created_at,
   }));
 }
+
+/**
+ * Topic tags, looked up directly so stories that never reach a front page still turn up.
+ * Each returns that platform's recent stories with the tag, minus ones with almost no reactions.
+ */
+export type TagPlatform = 'zenn' | 'qiita' | 'devto' | 'lobsters';
+
+const TAG_MIN_SCORE = 3;
+const TAG_DAYS = 4;
+
+/** Zenn, dev.to and Lobsters spell tags in lowercase letters and digits only ("Node.js" → nodejs) */
+const tagSlug = (tag: string) => tag.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const popularEnough = (items: RawItem[], tag: string) =>
+  items.filter((i) => Number(i.score) >= TAG_MIN_SCORE).map((i) => ({ ...i, tags: [...i.tags, tag] }));
+
+async function bySlug(tag: string, request: (slug: string) => Promise<RawItem[]>): Promise<RawItem[]> {
+  const slug = tagSlug(tag);
+  return slug ? popularEnough(await request(slug), tag) : [];
+}
+
+/** Lobsters answers an unknown tag with an error page, so only tags it lists are asked for (the list is fetched once) */
+let lobstersTags: Promise<Set<string>> | undefined;
+function knownLobstersTags(): Promise<Set<string>> {
+  lobstersTags ??= fetchJson<{ tag: string }[]>('https://lobste.rs/tags.json').then(
+    (tags) => new Set(tags.map((t) => t.tag)),
+  );
+  return lobstersTags;
+}
+
+export const TAG_FETCHERS: Record<TagPlatform, (tag: string, now: Date) => Promise<RawItem[]>> = {
+  zenn: (tag) =>
+    bySlug(tag, async (slug) => {
+      const data = await fetchJson<{ articles: ZennArticle[] }>(
+        `https://zenn.dev/api/articles?topicname=${slug}&order=latest&count=30`,
+      );
+      return data.articles.map(zennItem);
+    }),
+  qiita: async (tag, now) =>
+    popularEnough(await searchQiita(`tag:${tag} created:>${isoDaysAgo(TAG_DAYS, now).slice(0, 10)}`, 30), tag),
+  devto: (tag) =>
+    bySlug(tag, (slug) => devtoArticles(`https://dev.to/api/articles?tag=${slug}&top=${TAG_DAYS}&per_page=30`)),
+  lobsters: (tag) =>
+    bySlug(tag, async (slug) =>
+      (await knownLobstersTags()).has(slug) ? lobstersStories(`https://lobste.rs/t/${slug}.json`) : [],
+    ),
+};

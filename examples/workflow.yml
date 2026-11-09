@@ -28,9 +28,9 @@ jobs:
         with:
           language: en
           topics: |
-            rust: [rust, cargo]
-            databases: [postgres, sqlite, duckdb]
-            ai: { weight: 0.8, keywords: [llm, agents, mcp] }
+            Rust: [rust, cargo]
+            Databases: [postgres, sqlite, duckdb]
+            AI: { weight: 0.8, keywords: [llm, agents, mcp] }
           official: |
             https://blog.rust-lang.org/feed.xml
             rust-lang/rust

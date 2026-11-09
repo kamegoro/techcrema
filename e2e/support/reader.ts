@@ -54,7 +54,7 @@ export class Reader {
     );
   }
 
-  /** The number next to a tab, e.g. Today 8 */
+  /** The number next to a tab, e.g. Today 7 */
   async expectTabCount(tab: Tab, count: number | null) {
     await step(`The ${tab} tab shows ${count ?? 'no'} count`, async () => {
       const tabLink = ui.link(ui.navigation(this.page, 'Views'), new RegExp(`^${tab}`));
@@ -89,6 +89,21 @@ export class Reader {
   async expectNoStoryFrom(sectionName: string, domain: string) {
     await step(`"${sectionName}" shows nothing from ${domain}`, async () => {
       await expect(this.section(sectionName)).not.toContainText(domain);
+    });
+  }
+
+  /** Opens the stories a section keeps behind its "Show N more" button */
+  async showMore(sectionName: string) {
+    await step(`Show the rest of "${sectionName}"`, () =>
+      ui.button(this.section(sectionName), /^Show \d+ more$/).click(),
+    );
+  }
+
+  async expectMoreToShow(sectionName: string, count: number | null) {
+    await step(`"${sectionName}" offers ${count ?? 'no'} more stories`, async () => {
+      const more = ui.button(this.section(sectionName), /^Show \d+ more$/);
+      if (count === null) await expect(more).toHaveCount(0);
+      else await expect(more).toHaveAccessibleName(`Show ${count} more`);
     });
   }
 

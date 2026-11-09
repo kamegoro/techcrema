@@ -30,8 +30,8 @@ const ctx = await browser.newContext({
 });
 const page = await ctx.newPage();
 await page.goto(base);
-const forYou = page.getByRole('region', { name: 'For you' });
-await forYou.getByRole('article').first().waitFor();
+const topic = page.getByRole('region', { name: 'AI' });
+await topic.getByRole('article').first().waitFor();
 await page.waitForTimeout(500);
 
 const framesDir = await mkdtemp(path.join(tmpdir(), 'tc-demo-'));
@@ -75,21 +75,20 @@ await scrollBy(900, 1600);
 await pause(900);
 await scrollBy(900, 1600);
 await pause(900);
-// 2. Jump to a section from the chips
+// 2. Jump to a topic from the chips and show the rest of it
 await scrollBy(-1800, 900);
 await pause(500);
-await page
-  .getByRole('navigation', { name: 'Sections' })
-  .getByRole('link', { name: /^Trending/ })
-  .tap();
+await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: /^AI/ }).tap();
+await pause(1000);
+await topic.getByRole('button', { name: /^Show \d+ more$/ }).tap();
 await pause(1300);
-// 3. Mute a site; the section is refilled from spares
+// 3. Mute a site; the section is refilled from the stories behind "Show more"
 await page.evaluate(() => scrollTo(0, 0));
-await forYou.scrollIntoViewIfNeeded();
+await topic.scrollIntoViewIfNeeded();
 await page.evaluate(() => scrollBy(0, -70));
 await pause(700);
-// A Hacker News link usually comes from a site that appears once, so the refill from spares is visible
-const hnStory = forYou.getByRole('article').filter({ has: page.getByRole('link', { name: /^Discussion on HN/ }) });
+// A Hacker News link usually comes from a site that appears once, so the refill is visible
+const hnStory = topic.getByRole('article').filter({ has: page.getByRole('link', { name: /^Discussion on HN/ }) });
 await hnStory.first().getByRole('button', { name: 'Mute' }).tap();
 await pause(1000);
 await page
@@ -100,7 +99,7 @@ await pause(700);
 await page.getByRole('dialog').getByRole('button', { name: 'Mute', exact: true }).tap();
 await pause(1800);
 // 4. Save one for later and open the Later tab
-await forYou.getByRole('article').first().getByRole('button', { name: 'Read later' }).tap();
+await topic.getByRole('article').first().getByRole('button', { name: 'Read later' }).tap();
 await pause(600);
 await page.getByRole('link', { name: /Later/ }).tap();
 await pause(1400);

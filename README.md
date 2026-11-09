@@ -25,6 +25,7 @@ TechCrema shows the overlap: **popular right now _and_ about your topics**, one 
 - 🧭 **A section per topic**: your topics are the table of contents, each with its best stories and a "Show more"
 - 🔎 **Goes looking for your topics**: besides the front pages, it checks each topic's tag on Zenn, Qiita, dev.to and Lobsters, so niche topics still turn up
 - 🔁 **No repeats, no gaps**: a story stays for two days, so a day you skip loses nothing, and what you already read moves aside
+- 🌐 **Titles in your language**: in desktop Chrome and Edge, a title in another language gets a translated line under it, done by the browser on your device. Elsewhere, the browser's own "Translate" works on the titles
 - 📱 **Phone first**: dark mode, add to home screen, one small JSON file
 - 🔇 **Mute and save** right from the page; everything stays in your browser
 

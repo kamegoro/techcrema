@@ -1,5 +1,6 @@
 // TechCrema in the browser. Text from outside (titles etc.) only ever goes in via textContent, never innerHTML.
-import { formatDate, formatTime, setLanguage, t, timeAgo, translateDocument } from './i18n.js';
+import { formatDate, formatTime, language, setLanguage, t, timeAgo, translateDocument } from './i18n.js';
+import { translationOf } from './translate.js';
 
 const SOURCE_LABELS = {
   hackernews: 'HN',
@@ -383,12 +384,13 @@ function source(a, story) {
   const href = a.discussionUrl ? safeUrl(a.discussionUrl) : null;
   if (!href) {
     const title = a.score === null || a.score === undefined ? undefined : `${a.score} ${a.scoreLabel ?? ''}`.trim();
-    return h('span', { class: 'source', title, dataset: { source: a.source } }, ...children);
+    return h('span', { class: 'source', title, translate: 'no', dataset: { source: a.source } }, ...children);
   }
   return h(
     'a',
     {
       class: 'source',
+      translate: 'no',
       href,
       target: '_blank',
       rel: 'noopener noreferrer',
@@ -415,6 +417,11 @@ function storyItem(story, idPrefix, options = {}) {
   const official = story.appearances.every((a) => a.source === 'official');
 
   const titleId = `${idPrefix}-title`;
+  const translation = translationOf(story, language(), () => redraw(story.key));
+  const titleText = [
+    h('span', { lang: story.lang }, story.title),
+    translation ? h('span', { class: 'story-translation', lang: language() }, translation) : null,
+  ];
   const title = h(
     'h3',
     { class: 'story-title', id: titleId },
@@ -428,9 +435,9 @@ function storyItem(story, idPrefix, options = {}) {
             rel: 'noopener noreferrer',
             onclick: () => (options.fromLater ? readFromLater(story) : markRead(story)),
           },
-          story.title,
+          titleText,
         )
-      : story.title,
+      : titleText,
   );
 
   const meta = h(
@@ -455,7 +462,7 @@ function storyItem(story, idPrefix, options = {}) {
       : null,
     story.resurfaced ? h('span', { class: 'tag tag-accent' }, t('resurfaced')) : null,
     story.groupedCount ? h('span', {}, t('grouped', { n: story.groupedCount })) : null,
-    official ? null : h('span', { class: 'story-domain' }, story.domain),
+    official ? null : h('span', { class: 'story-domain', translate: 'no' }, story.domain),
     story.publishedAt ? h('time', { datetime: story.publishedAt }, timeAgo(story.publishedAt)) : null,
   );
 
@@ -657,6 +664,7 @@ function render() {
 function openMuteSheet(story) {
   const dialog = $('mute-sheet');
   $('mute-story').textContent = story.title;
+  $('mute-story').lang = story.lang ?? '';
   $('mute-custom').value = '';
   const options = [];
   if (story.domain)

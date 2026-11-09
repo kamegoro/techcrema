@@ -137,6 +137,9 @@ function initialLanguage() {
   return navigator.language?.toLowerCase().startsWith('ja') ? 'ja' : 'en';
 }
 
+/** The language the page is shown in ('en' or 'ja') */
+export const language = () => lang;
+
 export function setLanguage(next) {
   if (!(next in MESSAGES) || next === lang) return false;
   lang = next;

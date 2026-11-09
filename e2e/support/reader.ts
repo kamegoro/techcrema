@@ -156,6 +156,45 @@ export class Reader {
     );
   }
 
+  /**
+   * The browser can translate on the device: right away ('available'), or once the language is downloaded,
+   * which it does after the reader's next tap ('downloadable'). Translations read "[ja] <title>".
+   */
+  async haveOnDeviceTranslation(availability: 'available' | 'downloadable') {
+    await step(
+      availability === 'available'
+        ? 'The browser can translate on the device'
+        : 'The browser can translate on the device once it downloads the language',
+      () =>
+        this.page.addInitScript((availability) => {
+          Object.assign(window, {
+            Translator: {
+              availability: async () => availability,
+              create: async ({ targetLanguage }: { targetLanguage: string }) => ({
+                translate: async (text: string) => `[${targetLanguage}] ${text}`,
+              }),
+            },
+          });
+        }, availability),
+    );
+  }
+
+  /** Clicks somewhere that does nothing (the page title) */
+  async tapThePage() {
+    await step('Tap the page', () => ui.heading(this.page, /.*/, 1).click());
+  }
+
+  async expectTranslation(title: string, translation: string | null) {
+    await step(
+      translation ? `"${title}" is also shown as "${translation}"` : `"${title}" is shown untranslated`,
+      async () => {
+        await expect(
+          ui.heading(this.page, new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), 3).first(),
+        ).toHaveAccessibleName(translation ? `${title} ${translation}` : title);
+      },
+    );
+  }
+
   async openStory(title: string) {
     await step(`Open the story "${title}"`, async () => {
       const popup = this.page.waitForEvent('popup');

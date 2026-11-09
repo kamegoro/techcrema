@@ -11,14 +11,14 @@
    - **New repos:** repositories from the last 7 days gaining stars, your topics first.
 6. **Variety.** No single platform fills more than 40% of a section, and no author on dev.to, Zenn, Qiita, Medium or note more than one story, while others have stories to offer.
 7. **Freshness.** Platform stories older than 4 days are dropped. A story stays on the page the day it is first shown and the next day, then hides unless its popularity rises by 0.1 or more; then it comes back once, marked *Back again*.
-8. **In the browser.** Stories you have read move after the unread ones in each section, so a second visit shows what is left. Coming back to the page never swaps the stories under you: a newer edition is offered in a message instead.
+8. **In the browser.** Stories you have read move after the unread ones in each section, so a second visit shows what is left. Coming back to the page never swaps the stories under you: a newer edition is offered in a message instead. A title in another language than the page gets a translated line under it when the browser can translate on the device (desktop Chrome and Edge); the first time, the browser downloads the language after your next tap or key press.
 
 The 14-day score history and the list of shown stories are kept in the Actions cache between runs. Scores from tag lookups stay out of that history, so they don't make front-page stories look more popular than they are. Only today's `feed.json` is published.
 
 ## Privacy & etiquette
 
 - **What gets published:** titles, links and popularity numbers. No article text is copied.
-- **What stays on your device:** Read later, read marks and mutes live in your browser's `localStorage` and are never sent anywhere.
+- **What stays on your device:** Read later, read marks and mutes live in your browser's `localStorage` and are never sent anywhere. Titles are translated by the browser itself, on your device; they aren't sent to a translation service.
 - **No tracking:** the page loads nothing from third parties, and a strict Content Security Policy blocks inline scripts and outside requests.
 - **Gentle fetching:** each run makes one pass over the sources. Requests to the same host go one at a time with a pause (5 seconds for Hatena, per its `robots.txt`). Every request carries a User-Agent naming your repository. Please keep the schedule to a couple of runs a day.
 - **Terms of service:** this is meant as a personal reading page. If you build a public service on top of it, check each source's terms first.

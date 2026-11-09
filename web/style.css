@@ -390,6 +390,14 @@ a {
   gap: 8px;
 }
 
+.story-translation {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
 .story-title {
   margin: 0;
   padding-right: 8px;

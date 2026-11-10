@@ -5,7 +5,7 @@
 **Your daily tech front page, built by a GitHub Action.**
 
 What's popular on Hacker News, Lobsters, dev.to and more, filtered to what you care about.<br>
-One page a day, made for your phone. No server, no database, no AI.
+One page a day, made for your phone. No server, no database, no AI service.
 
 **[Live demo](https://kamegoro.github.io/techcrema/)**
 
@@ -25,7 +25,7 @@ TechCrema shows the overlap: **popular right now _and_ about your topics**, one 
 - 🧭 **A section per topic**: your topics are the table of contents, each with its best stories and a "Show more"
 - 🔎 **Goes looking for your topics**: besides the front pages, it checks each topic's tag on Zenn, Qiita, dev.to and Lobsters, so niche topics still turn up
 - 🔁 **No repeats, no gaps**: a story stays for two days, so a day you skip loses nothing, and what you already read moves aside
-- 💬 **What people said**: under a story, a couple of comments from its discussion (the top ones on Hacker News or Lobsters; on Japanese pages, Hatena Bookmark comments first), so you know what's in it before you open it
+- 💬 **What people said**: under a story, a couple of comments from its discussion (the top ones on Hacker News or Lobsters; on Japanese pages, the most-starred Hatena Bookmark comments first), so you know what's in it before you open it
 - 🌐 **Titles in your language**: in desktop Chrome and Edge, a title in another language gets a translated line under it, and comments are translated too, done by the browser on your device. Elsewhere, the browser's own "Translate" works on them
 - 📱 **Phone first**: dark mode, add to home screen, one small JSON file
 - 🔇 **Mute and save** right from the page; everything stays in your browser

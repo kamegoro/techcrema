@@ -104,34 +104,82 @@ describe('findVoices from Lobsters', () => {
 });
 
 describe('findVoices from Hatena Bookmark', () => {
-  it('takes the longest comments, which say more than a quick reaction', async () => {
-    serve({
-      [HATENA_URL]: {
-        count: 296,
-        bookmarks: [
-          { comment: '' },
-          { comment: 'あとで読む' },
-          { comment: 'ローカルLLMで患者情報を外に出さない構成は、現場の要件をよく分かっている。' },
-          {
-            comment:
-              '院長がClaude Codeで診療支援システムを自作し、カルテ要約や問診票の読み取りまでしている。人が最終確認する作りも良い。',
-          },
-        ],
-      },
+  const EID = '42';
+  const bookmark = (user: string, comment: string) => ({ user, timestamp: '2026/11/07 12:34', comment });
+  const page = (user: string) => `https://b.hatena.ne.jp/${user}/20261107#bookmark-${EID}`;
+  /** Hatena Star's answer for the pages a request asks about */
+  const starAnswer = (url: string, stars: Record<string, number>) => ({
+    entries: new URL(url).searchParams.getAll('uri').map((uri) => ({
+      uri,
+      stars: Array.from({ length: stars[uri] ?? 0 }, () => ({ name: 'someone' })),
+      colored_stars: uri === page('colored') ? [{ color: 'green', stars: [{}, {}, {}] }] : undefined,
+    })),
+  });
+  const SHORT_WITTY = '仕様変更を検出できたんだから良いテストじゃんよ';
+  const LONG_QUOTE =
+    '「ある日突然 (内部的に) ubuntu-26.04 に切り替わりました」という引用だけのコメントで、スターは付いていない';
+  const REASONED = '明治5年以前は太陰暦なので、単に西暦を明治にしただけでは済まない';
+
+  function serveHatena(bookmarks: ReturnType<typeof bookmark>[], stars: Record<string, number> | null) {
+    json.mockImplementation(async (url: string) => {
+      if (url === HATENA_URL) return { eid: EID, count: 144, bookmarks };
+      if (url.startsWith('https://s.hatena.com/entry.json?') && stars) return starAnswer(url, stars);
+      throw new Error(`HTTP 404 (${url})`);
     });
+  }
+
+  it("takes the comments Hatena users starred most, like Hatena's popular comments", async () => {
+    serveHatena(
+      [
+        bookmark('quiet', LONG_QUOTE),
+        bookmark('witty', SHORT_WITTY),
+        bookmark('reader', 'あとで読む'),
+        bookmark('reasoned', REASONED),
+      ],
+      { [page('witty')]: 22, [page('reasoned')]: 9 },
+    );
     const voices = await findVoices(story([{ discussionUrl: HN_URL }]), { hatena: true });
     expect(voices).toEqual({
       source: 'hatena',
-      count: 296,
+      count: 144,
       url: 'https://b.hatena.ne.jp/entry/s/a.dev/post',
       comments: [
-        {
-          text: '院長がClaude Codeで診療支援システムを自作し、カルテ要約や問診票の読み取りまでしている。人が最終確認する作りも良い。',
-          lang: 'ja',
-        },
-        { text: 'ローカルLLMで患者情報を外に出さない構成は、現場の要件をよく分かっている。', lang: 'ja' },
+        { text: SHORT_WITTY, lang: 'ja' },
+        { text: REASONED, lang: 'ja' },
       ],
     });
+  });
+
+  it('counts colored stars, and puts the longer comment first among equals', async () => {
+    serveHatena([bookmark('plain', SHORT_WITTY), bookmark('colored', REASONED), bookmark('long', LONG_QUOTE)], {
+      [page('plain')]: 2,
+    });
+    const voices = await findVoices(story([]), { hatena: true });
+    expect(voices?.comments.map((c) => c.text)).toEqual([REASONED, SHORT_WITTY]);
+    serveHatena([bookmark('a', SHORT_WITTY), bookmark('b', LONG_QUOTE)], {});
+    expect((await findVoices(story([]), { hatena: true }))?.comments.map((c) => c.text)).toEqual([
+      LONG_QUOTE,
+      SHORT_WITTY,
+    ]);
+  });
+
+  it('weighs the newest 100 comments, asking Hatena Star about 50 at a time', async () => {
+    serveHatena(
+      Array.from({ length: 120 }, (_, i) => bookmark(`user${i}`, `${REASONED} ${i}`)),
+      { [page('user99')]: 5 },
+    );
+    const voices = await findVoices(story([]), { hatena: true });
+    expect(voices?.comments[0]?.text).toBe(`${REASONED} 99`);
+    const starRequests = json.mock.calls.map(([url]) => url).filter((url) => url.startsWith('https://s.hatena.com'));
+    expect(starRequests.map((url) => new URL(url).searchParams.getAll('uri').length)).toEqual([50, 50]);
+  });
+
+  it('picks by length when the stars cannot be read', async () => {
+    serveHatena([bookmark('witty', SHORT_WITTY), bookmark('quiet', LONG_QUOTE)], null);
+    expect((await findVoices(story([]), { hatena: true }))?.comments.map((c) => c.text)).toEqual([
+      LONG_QUOTE,
+      SHORT_WITTY,
+    ]);
   });
 
   it('falls back to Hacker News when Hatena has no entry or nothing worth showing', async () => {
@@ -142,7 +190,7 @@ describe('findVoices from Hatena Bookmark', () => {
     });
     expect((await findVoices(story([{ discussionUrl: HN_URL }]), { hatena: true }))?.source).toBe('hackernews');
     serve({
-      [HATENA_URL]: { count: 3, bookmarks: [{ comment: 'nice' }] },
+      [HATENA_URL]: { eid: '1', count: 3, bookmarks: [{ user: 'a', timestamp: '2026/11/07 12:34', comment: 'nice' }] },
       [hnItem(1)]: { kids: [2], descendants: 3 },
       [hnItem(2)]: { text: LONG },
     });

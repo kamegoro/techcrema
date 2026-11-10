@@ -1,5 +1,5 @@
 /** What the Today page shows. Interactions live in their own spec files. */
-import { emptyFeed, makeFeed } from '#e2e/support/feeds.ts';
+import { emptyFeed, makeFeed, story } from '#e2e/support/feeds.ts';
 import { expect, test } from '#e2e/support/test.ts';
 
 test.describe('Today page', () => {
@@ -68,6 +68,33 @@ test.describe('Today page', () => {
             - article "node v26.1.0":
               - text: Release Minor and 2 more github.com
     `);
+  });
+
+  test('a slide deck is marked as slides, and its popularity is its Hatena bookmarks', async ({ reader }) => {
+    const feed = makeFeed();
+    const hatena = (score: number) => ({ score, scoreLabel: 'users', percentile: 0.9 });
+    const deck = (key: string, title: string, sources: ('slides' | 'hatena')[]) =>
+      story(key, {
+        title,
+        domain: 'speakerdeck.com',
+        appearances: sources.map((source) => ({
+          source,
+          ...hatena(139),
+          discussionUrl: `https://b.hatena.ne.jp/entry/s/speakerdeck.com/${key}`,
+        })),
+      });
+    feed.sections[2]?.stories.unshift(
+      deck('deck', 'IAM in the age of AI', ['slides']),
+      deck('both', 'A deck on the front page', ['slides', 'hatena']),
+    );
+    await reader.open(feed);
+    await expect(reader.story('IAM in the age of AI')).toMatchAriaSnapshot(`
+      - article "IAM in the age of AI":
+        - heading "IAM in the age of AI" [level=3]
+        - link "Discussion on Hatena (139 users)"
+        - text: Slides speakerdeck.com
+    `);
+    await expect(reader.story('A deck on the front page').getByRole('link', { name: /^Discussion on/ })).toHaveCount(1);
   });
 
   test('the page title comes from the settings', async ({ reader }) => {

@@ -5,7 +5,6 @@ import { translationOf } from './translate.js';
 const SOURCE_LABELS = {
   hackernews: 'HN',
   hatena: 'Hatena',
-  slides: 'Slides',
   zenn: 'Zenn',
   qiita: 'Qiita',
   devto: 'dev.to',
@@ -16,7 +15,7 @@ const SOURCE_LABELS = {
   github_release: 'Release',
 };
 /** Sources whose name differs by language (the rest are proper names) */
-const LOCALIZED_SOURCES = new Set(['hatena', 'slides']);
+const LOCALIZED_SOURCES = new Set(['hatena']);
 const STATE_KEY = 'techcrema-state-v1';
 // Caps (oldest dropped first) so localStorage doesn't fill up
 const MAX_READ = 3000;
@@ -379,7 +378,9 @@ function jumpTo(event, id) {
 
 /** Where the story is popular, e.g. "HN 668 pt", linking to the discussion when there is one */
 function source(a, story) {
-  const label = LOCALIZED_SOURCES.has(a.source) ? t(`source.${a.source}`) : (SOURCE_LABELS[a.source] ?? a.source);
+  // Slides are found and ranked through Hatena Bookmark, so their number is Hatena's; the kind is shown as a tag
+  const site = a.source === 'slides' ? 'hatena' : a.source;
+  const label = LOCALIZED_SOURCES.has(site) ? t(`source.${site}`) : (SOURCE_LABELS[site] ?? site);
   const children = [h('span', { class: 'source-dot' }), label];
   if (a.score !== null && a.score !== undefined) {
     // The unit (pt, likes…) is only in the accessible name; on screen the number next to the site is enough
@@ -389,7 +390,7 @@ function source(a, story) {
   const href = a.discussionUrl ? safeUrl(a.discussionUrl) : null;
   if (!href) {
     const title = a.score === null || a.score === undefined ? undefined : `${a.score} ${a.scoreLabel ?? ''}`.trim();
-    return h('span', { class: 'source', title, translate: 'no', dataset: { source: a.source } }, ...children);
+    return h('span', { class: 'source', title, translate: 'no', dataset: { source: site } }, ...children);
   }
   return h(
     'a',
@@ -399,7 +400,7 @@ function source(a, story) {
       href,
       target: '_blank',
       rel: 'noopener noreferrer',
-      dataset: { source: a.source },
+      dataset: { source: site },
       // Reading the discussion counts as reading the story
       onclick: () => markRead(story),
       'aria-label': t('discussion', { source: label, score: `${a.score ?? ''} ${a.scoreLabel ?? ''}`.trim() }),
@@ -505,7 +506,10 @@ function storyItem(story, idPrefix, options = {}) {
           h('span', { class: 'source-dot' }),
           story.publisher ?? t('source.official'),
         )
-      : story.appearances.map((a) => source(a, story)),
+      : story.appearances
+          // A deck also on Hatena's front page would otherwise show Hatena twice
+          .filter((a, _, all) => !(a.source === 'slides' && all.some((b) => b.source === 'hatena')))
+          .map((a) => source(a, story)),
     ['major', 'minor', 'patch'].includes(story.releaseKind)
       ? h(
           'span',
@@ -513,6 +517,7 @@ function storyItem(story, idPrefix, options = {}) {
           t(`release.${story.releaseKind}`),
         )
       : null,
+    story.appearances.some((a) => a.source === 'slides') ? h('span', { class: 'tag' }, t('slides')) : null,
     story.resurfaced ? h('span', { class: 'tag tag-accent' }, t('resurfaced')) : null,
     story.groupedCount ? h('span', {}, t('grouped', { n: story.groupedCount })) : null,
     official ? null : h('span', { class: 'story-domain', translate: 'no' }, story.domain),

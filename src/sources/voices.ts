@@ -13,7 +13,7 @@ const VOICES_PER_STORY = 2;
 /** Long comments are cut; the full text is one tap away on the discussion page */
 const MAX_COMMENT_CHARS = 280;
 /** Shorter comments are usually reactions ("+1", "nice") rather than something to learn from */
-const MIN_COMMENT_CHARS = { hackernews: 40, lobsters: 40, hatena: 25 } as const;
+const MIN_COMMENT_CHARS = { hackernews: 40, lobsters: 40, hatena: 15 } as const;
 /** HN comments to look at before giving up; the first ones are the top-ranked */
 const HN_COMMENTS_TO_TRY = 5;
 
@@ -63,26 +63,69 @@ async function lobstersVoices(discussionUrl: string): Promise<Voices> {
   return { source: 'lobsters', count: data.comment_count, url: discussionUrl, comments };
 }
 
+interface HatenaBookmark {
+  user: string;
+  /** "2026/11/07 12:34" */
+  timestamp: string;
+  comment: string;
+}
+
 interface HatenaEntry {
+  eid: string;
   count: number;
-  bookmarks: { comment: string }[];
+  bookmarks: HatenaBookmark[];
+}
+
+interface StarEntries {
+  /** Only pages with stars are listed; colored_stars only when some are not yellow */
+  entries: { uri: string; stars: unknown[]; colored_stars?: { stars: unknown[] }[] }[];
+}
+
+/** Comments weighed by their stars: the newest ones, as Hatena lists them first */
+const HATENA_COMMENTS_TO_WEIGH = 100;
+/** Hatena Star answers for several comments at once; this keeps each request's URL a sensible length */
+const STAR_URIS_PER_REQUEST = 50;
+
+/** A bookmark comment's own page, which is what Hatena Star files its stars under */
+const bookmarkPage = (eid: string, b: HatenaBookmark) =>
+  `https://b.hatena.ne.jp/${b.user}/${b.timestamp.slice(0, 10).replaceAll('/', '')}#bookmark-${eid}`;
+
+/** Stars (all colors) on each page */
+async function starsOn(pages: string[]): Promise<Map<string, number>> {
+  const stars = new Map<string, number>();
+  for (let i = 0; i < pages.length; i += STAR_URIS_PER_REQUEST) {
+    const query = pages
+      .slice(i, i + STAR_URIS_PER_REQUEST)
+      .map((page) => `uri=${encodeURIComponent(page)}`)
+      .join('&');
+    const data = await fetchJson<StarEntries>(`https://s.hatena.com/entry.json?${query}`);
+    for (const e of data.entries) {
+      const colored = (e.colored_stars ?? []).reduce((n, c) => n + c.stars.length, 0);
+      stars.set(e.uri, e.stars.length + colored);
+    }
+  }
+  return stars;
 }
 
 /**
- * Hatena can't sort comments by stars without its private API, so the longest ones are taken:
- * a summary or an opinion with reasons, more often than a one-word reaction
+ * The comments Hatena users starred most, like Hatena's own "popular comments";
+ * longer ones first among equals, and by length alone when the stars can't be read
  */
 async function hatenaVoices(url: string): Promise<Voices | null> {
   const entry = await fetchJson<HatenaEntry | null>(
     `https://b.hatena.ne.jp/entry/json/?url=${encodeURIComponent(url)}`,
   );
   if (!entry) return null;
-  const comments = entry.bookmarks
-    .map((b) => b.comment.trim())
-    .filter((text) => text.length >= MIN_COMMENT_CHARS.hatena)
-    .sort((a, b) => b.length - a.length)
+  const candidates = entry.bookmarks
+    .filter((b) => b.comment.trim().length >= MIN_COMMENT_CHARS.hatena)
+    .slice(0, HATENA_COMMENTS_TO_WEIGH)
+    .map((b) => ({ text: b.comment.trim(), page: bookmarkPage(entry.eid, b) }));
+  const stars = await starsOn(candidates.map((c) => c.page)).catch(() => new Map<string, number>());
+  const starsOf = (c: { page: string }) => stars.get(c.page) ?? 0;
+  const comments = candidates
+    .sort((a, b) => starsOf(b) - starsOf(a) || b.text.length - a.text.length)
     .slice(0, VOICES_PER_STORY)
-    .map(comment);
+    .map((c) => comment(c.text));
   return { source: 'hatena', count: entry.count, url: hatenaEntryUrl(url), comments };
 }
 

@@ -75,14 +75,26 @@ await scrollBy(900, 1600);
 await pause(900);
 await scrollBy(900, 1600);
 await pause(900);
-// 2. Jump to a topic from the chips and show the rest of it
+// 2. Read what people said: open a comment to its full length
+const discussed = topic
+  .getByRole('article')
+  .filter({ has: page.getByRole('link', { name: /reactions on/ }) })
+  .first();
 await scrollBy(-1800, 900);
+await pause(400);
+await discussed.scrollIntoViewIfNeeded();
+await page.evaluate(() => scrollBy(0, 120));
+await pause(900);
+await discussed.getByRole('button').first().tap();
+await pause(2200);
+// 3. Jump to a topic from the chips and show the rest of it
+await page.evaluate(() => scrollTo(0, 0));
 await pause(500);
 await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: /^AI/ }).tap();
 await pause(1000);
 await topic.getByRole('button', { name: /^Show \d+ more$/ }).tap();
 await pause(1300);
-// 3. Mute a site; the section is refilled from the stories behind "Show more"
+// 4. Mute a site; the section is refilled from the stories behind "Show more"
 await page.evaluate(() => scrollTo(0, 0));
 await topic.scrollIntoViewIfNeeded();
 await page.evaluate(() => scrollBy(0, -70));
@@ -98,14 +110,14 @@ await page
 await pause(700);
 await page.getByRole('dialog').getByRole('button', { name: 'Mute', exact: true }).tap();
 await pause(1800);
-// 4. Save one for later and open the Later tab
+// 5. Save one for later and open the Later tab
 await topic.getByRole('article').first().getByRole('button', { name: 'Read later' }).tap();
 await pause(600);
 await page.getByRole('link', { name: /Later/ }).tap();
 await pause(1400);
 await page.getByRole('link', { name: /Today/ }).tap();
 await pause(500);
-// 5. Dark mode
+// 6. Dark mode
 await page.getByRole('button', { name: 'Dark mode' }).tap();
 await pause(1800);
 

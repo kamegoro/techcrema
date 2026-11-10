@@ -12,7 +12,7 @@ One page a day, made for your phone. No server, no database, no AI.
 <a href="https://github.com/kamegoro/techcrema/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kamegoro/techcrema/ci.yml?branch=main&label=CI&logo=github&style=flat"></a>
 <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue?style=flat"></a>
 
-<img src="docs/demo.gif" alt="Jumping to a topic, showing more of it, muting a site, saving a story for later and switching to dark mode" width="300" />
+<img src="docs/demo.gif" alt="Opening a comment under a story, jumping to a topic, showing more of it, muting a site, saving a story for later and switching to dark mode" width="300" />
 
 </div>
 

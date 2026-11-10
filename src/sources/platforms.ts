@@ -44,7 +44,7 @@ export async function fetchHackerNews(): Promise<RawItem[]> {
 const HATENA_TECH_CATEGORY = '\u30c6\u30af\u30ce\u30ed\u30b8\u30fc';
 
 /** Hatena's comment page: /entry/s/ for https articles, /entry/ for http ones */
-function hatenaEntryUrl(link: string): string {
+export function hatenaEntryUrl(link: string): string {
   if (link.startsWith('https://')) return `https://b.hatena.ne.jp/entry/s/${link.slice('https://'.length)}`;
   return `https://b.hatena.ne.jp/entry/${link.replace(/^http:\/\//, '')}`;
 }

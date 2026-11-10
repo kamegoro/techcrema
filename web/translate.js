@@ -1,14 +1,14 @@
-// Titles in another language get a second line in the page's language, translated on the device by the
+// Titles and comments in another language get a version in the page's language, translated on the device by the
 // browser's built-in Translator (desktop Chrome and Edge). Nothing is sent anywhere and nothing is paid for;
-// browsers without it show the titles as they are.
+// browsers without it show them as they are.
 
 /** source language -> Promise of a translator, or null when the browser can't translate that pair */
 const translators = new Map();
-/** `${from}>${to}\n${title}` -> translated title, or null when translating failed */
+/** `${from}>${to}\n${text}` -> translated text, or null when translating failed */
 const translated = new Map();
 const pending = new Set();
 
-const keyOf = (story, target) => `${story.lang}>${target}\n${story.title}`;
+const keyOf = ({ lang, text }, target) => `${lang}>${target}\n${text}`;
 
 /** Downloading a language pack needs a tap or key press first (the browser asks for one) */
 function nextGesture() {
@@ -44,21 +44,21 @@ function translatorFor(source, target) {
 }
 
 /**
- * The title in `target`, if it is already translated. Otherwise starts translating it (one request per title)
- * and calls `onReady` once there is a translation to show.
+ * `text` (written in `lang`) in `target`, if it is already translated. Otherwise starts translating it
+ * (once per text) and calls `onReady` when there is a translation to show.
  */
-export function translationOf(story, target, onReady) {
-  if (!story.lang || story.lang === target || !globalThis.Translator) return null;
-  const key = keyOf(story, target);
+export function translationOf({ lang, text }, target, onReady) {
+  if (!lang || lang === target || !globalThis.Translator) return null;
+  const key = keyOf({ lang, text }, target);
   if (translated.has(key)) return translated.get(key);
   if (!pending.has(key)) {
     pending.add(key);
-    translatorFor(story.lang, target)
-      .then((translator) => translator?.translate(story.title) ?? null)
+    translatorFor(lang, target)
+      .then((translator) => translator?.translate(text) ?? null)
       .catch(() => null)
-      .then((text) => {
+      .then((result) => {
         pending.delete(key);
-        const useful = text && text.trim() !== story.title.trim() ? text.trim() : null;
+        const useful = result && result.trim() !== text.trim() ? result.trim() : null;
         translated.set(key, useful);
         if (useful) onReady();
       });

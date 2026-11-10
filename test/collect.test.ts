@@ -5,6 +5,7 @@ import { collect, runCollect, summarize } from '#src/collect.ts';
 import { resolveConfig } from '#src/config.ts';
 import { fetchGithubReleases, fetchOfficialFeed } from '#src/sources/official.ts';
 import { fetchHackerNews, fetchLobsters, TAG_FETCHERS } from '#src/sources/platforms.ts';
+import { findVoices } from '#src/sources/voices.ts';
 import { loadFeed, loadScoreWindow, loadSeen, saveScoreSnapshot, saveSeen } from '#src/store.ts';
 import type { Feed, RawItem, Story } from '#src/types.ts';
 import { tempDir } from './support/temp-dir.ts';
@@ -25,6 +26,7 @@ vi.mock('#src/sources/platforms.ts', () => {
   };
 });
 vi.mock('#src/sources/official.ts', () => ({ fetchOfficialFeed: vi.fn(), fetchGithubReleases: vi.fn() }));
+vi.mock('#src/sources/voices.ts', () => ({ findVoices: vi.fn(async () => undefined) }));
 
 const NOW = new Date('2026-11-08T09:00:00Z');
 const TODAY = '2026-11-08';
@@ -115,6 +117,30 @@ describe('collect', () => {
     expect(rust?.appearances[0]?.percentile).toBe(0.375);
     // Scores from the tag lookup don't go into the scale
     expect(await loadScoreWindow('2026-11-09')).toEqual({ hackernews: [1000, 2000, 500, 50], lobsters: [10] });
+  });
+
+  it('adds what people said to the stories on the page, looking on Hatena only for Japanese pages', async () => {
+    const voices = {
+      source: 'hackernews' as const,
+      count: 9,
+      url: 'https://news.ycombinator.com/item?id=1',
+      comments: [],
+    };
+    vi.mocked(findVoices).mockImplementation(async (story) =>
+      story.title === 'Rust 2.0 released' ? voices : undefined,
+    );
+    const log = vi.fn();
+    const { feed } = await collect(config(), log);
+    const stories = feed.sections.flatMap((s) => s.stories);
+    expect(stories.find((s) => s.title === 'Rust 2.0 released')?.voices).toEqual(voices);
+    expect(stories.find((s) => s.title === 'Node.js 26.1')).not.toHaveProperty('voices');
+    expect(log).toHaveBeenCalledWith('  ✓ voices: 1');
+    expect(vi.mocked(findVoices).mock.calls.every(([, options]) => options.hatena === false)).toBe(true);
+
+    vi.mocked(findVoices).mockClear();
+    await collect(resolveConfig({ language: 'ja', sources: ['hackernews', 'hatena'], topics: { rust: ['rust'] } }, {}));
+    expect(vi.mocked(findVoices).mock.calls.length).toBeGreaterThan(0);
+    expect(vi.mocked(findVoices).mock.calls.every(([, options]) => options.hatena)).toBe(true);
   });
 
   it('remembers what was shown so it is not repeated tomorrow', async () => {

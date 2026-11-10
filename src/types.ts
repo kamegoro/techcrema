@@ -57,6 +57,17 @@ export interface Story {
   groupedCount?: number;
   /** Shown on an earlier day, back because it kept climbing */
   resurfaced?: boolean;
+  /** What people said about it, from one discussion */
+  voices?: Voices;
+}
+
+/** A couple of comments from a story's discussion, so the page shows what people make of it */
+export interface Voices {
+  source: 'hackernews' | 'lobsters' | 'hatena';
+  /** How many comments or bookmarks the discussion has in all */
+  count: number;
+  url: string;
+  comments: { text: string; lang: Story['lang'] }[];
 }
 
 export interface Appearance {

@@ -5,6 +5,9 @@ import { NOW } from './feeds.ts';
 import * as ui from './semantic.ts';
 
 /** Runs `body` as a named step in the report; failures point at the spec line, not at this file */
+/** Matches an accessible name that starts with `text` */
+const startingWith = (text: string) => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
+
 const step = <T>(title: string, body: () => Promise<T>) => test.step(title, body, { box: true });
 
 export type Tab = 'Today' | 'Later' | 'Muted';
@@ -188,11 +191,32 @@ export class Reader {
     await step(
       translation ? `"${title}" is also shown as "${translation}"` : `"${title}" is shown untranslated`,
       async () => {
-        await expect(
-          ui.heading(this.page, new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), 3).first(),
-        ).toHaveAccessibleName(translation ? `${title} ${translation}` : title);
+        await expect(ui.heading(this.page, startingWith(title), 3).first()).toHaveAccessibleName(
+          translation ? `${title} ${translation}` : title,
+        );
       },
     );
+  }
+
+  /** Taps a comment under a story, which opens it to its full length or closes it again */
+  async tapComment(title: string, start: string) {
+    await step(`Tap the comment on "${title}" that starts "${start}"`, () =>
+      ui.button(this.story(title), startingWith(start)).click(),
+    );
+  }
+
+  async expectCommentOpen(title: string, start: string, open: boolean) {
+    await step(`The comment on "${title}" that starts "${start}" is ${open ? 'open' : 'cut short'}`, async () => {
+      await expect(ui.button(this.story(title), startingWith(start))).toHaveAttribute('aria-expanded', String(open));
+    });
+  }
+
+  async openAllReactions(title: string) {
+    await step(`Open everything people said about "${title}"`, async () => {
+      const popup = this.page.waitForEvent('popup');
+      await ui.link(this.story(title), /^All \d+ reactions on /).click();
+      await (await popup).close();
+    });
   }
 
   async openStory(title: string) {

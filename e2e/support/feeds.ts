@@ -2,6 +2,9 @@
 import type { Feed, SectionId, Story } from '#src/types.ts';
 
 export const NOW = new Date('2026-11-08T09:00:00Z');
+/** A comment long enough to be cut to three lines on any screen */
+export const LONG_COMMENT = `I have shipped three CLIs in Rust. ${'The error handling story is what sold me. '.repeat(8)}The end.`;
+
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3_600_000).toISOString();
 
 export function story(key: string, over: Partial<Story> = {}): Story {
@@ -70,7 +73,21 @@ export function makeFeed(over: Partial<Feed> = {}): Feed {
             interest: 1,
             matchedKeywords: ['rust'],
           }),
-          story('b', { domain: 'beta.dev', title: 'Writing a Rust CLI', topics: ['rust'], interest: 1 }),
+          story('b', {
+            domain: 'beta.dev',
+            title: 'Writing a Rust CLI',
+            topics: ['rust'],
+            interest: 1,
+            voices: {
+              source: 'hackernews',
+              count: 230,
+              url: 'https://news.ycombinator.com/item?id=b',
+              comments: [
+                { text: LONG_COMMENT, lang: 'en' },
+                { text: 'clap made the argument parsing painless for me.', lang: 'en' },
+              ],
+            },
+          }),
           story('c', { domain: 'alpha.dev', title: 'Another alpha post', topics: ['rust'], interest: 1 }),
           story('d', { domain: 'gamma.dev', title: 'Cargo workspaces', topics: ['rust'], interest: 1 }),
           story('e', { domain: 'delta.dev', title: 'Spare story e', topics: ['rust'], interest: 1 }),

@@ -1,6 +1,6 @@
 {
   "name": "techcrema",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "private": true,
   "description": "Your own daily tech front page: popular stories from Hacker News, Lobsters, dev.to and more, filtered to your interests, published to GitHub Pages by a GitHub Action",
   "type": "module",

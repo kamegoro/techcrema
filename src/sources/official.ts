@@ -3,19 +3,9 @@
 import { parseFeed, parseFeedTitle } from '#src/feed-parser.ts';
 import { fetchJson, fetchText, githubHeaders } from '#src/http.ts';
 import { domainOf } from '#src/normalize.ts';
+import { truncate } from '#src/text.ts';
 import type { RawItem, ReleaseKind } from '#src/types.ts';
 import { repoName } from './platforms.ts';
-
-/** Cuts text to `max` characters (not UTF-16 units, so an emoji is never split), ending with "…" when cut */
-function truncate(text: string, max: number): string {
-  const chars = Array.from(text);
-  return chars.length > max
-    ? `${chars
-        .slice(0, max - 1)
-        .join('')
-        .trimEnd()}…`
-    : text;
-}
 
 /** name is optional; without it the feed's own title (or the host name) is used */
 export async function fetchOfficialFeed(name: string | undefined, url: string): Promise<RawItem[]> {

@@ -14,13 +14,14 @@ import {
   TAG_FETCHERS,
   type TagPlatform,
 } from '#src/sources/platforms.ts';
+import { findVoices } from '#src/sources/voices.ts';
 import type { Log } from './cli.ts';
 import { type Config, loadConfig, type PlatformId } from './config.ts';
 import { localDate } from './dates.ts';
 import { mergeIntoStories, sanitizeItem } from './normalize.ts';
 import { buildSections, interestScorer, muteFilter, percentile, popularity } from './rank.ts';
 import { feedPath, loadScoreWindow, loadSeen, saveFeed, saveScoreSnapshot, saveSeen } from './store.ts';
-import type { Feed, RawItem, Section, Story } from './types.ts';
+import type { Feed, RawItem, Section, Story, Voices } from './types.ts';
 
 /** Extra stories per section, behind "Show more" and for refilling slots freed by mutes in the browser */
 const SPARE_PER_SECTION = 10;
@@ -73,13 +74,23 @@ function buildJobs(config: Config, now: Date): Job[] {
   ];
 }
 
+/** What people said about the stories each section shows, by story key (new repos have no discussions) */
+async function voicesFor(sections: Section[], config: Config): Promise<Map<string, Voices>> {
+  const hatena = config.language === 'ja' && config.sources.includes('hatena');
+  const shown = sections.filter((s) => s.id !== 'repos').flatMap((s) => s.stories.slice(0, s.limit));
+  const found = await Promise.all(
+    shown.map(async (story) => [story.key, await findVoices(story, { hatena })] as const),
+  );
+  return new Map(found.filter((entry): entry is [string, Voices] => entry[1] !== undefined));
+}
+
 /** How many stories a section shows before "Show more" */
 const shownCount = (s: Section) => Math.min(s.limit, s.stories.length);
 const sectionLabel = (s: Section) => s.title ?? s.id;
 
 /** Ranking details the page doesn't use stay out of the published feed */
-function forPage({ titleMatch, lookups, ...story }: Story): Story {
-  return story;
+function forPage({ titleMatch, lookups, ...story }: Story, voices: Voices | undefined): Story {
+  return voices ? { ...story, voices } : story;
 }
 
 export async function collect(
@@ -142,6 +153,9 @@ export async function collect(
     spare: SPARE_PER_SECTION,
   });
 
+  const voices = await voicesFor(sections, config);
+  log(`  ✓ voices: ${voices.size}`);
+
   // Spares are usually not shown, so only the visible stories count as seen
   for (const section of sections) {
     // The first day shown is kept: a story leaves the page the day after that
@@ -156,7 +170,7 @@ export async function collect(
     language: config.language,
     title: config.title,
     officialDays: config.layout.official_days,
-    sections: sections.map((s) => ({ ...s, stories: s.stories.map(forPage) })),
+    sections: sections.map((s) => ({ ...s, stories: s.stories.map((story) => forPage(story, voices.get(story.key))) })),
     errors,
   };
   await saveFeed(feed);

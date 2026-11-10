@@ -34,6 +34,8 @@ let loadError = null;
 const expanded = new Set();
 /** Where each story is drawn, so one story can be redrawn without moving anything else */
 const views = new Map();
+/** Comments opened to their full length, as `${story key}#${index}` (kept when a story is redrawn) */
+const openVoices = new Set();
 /** A newer feed.json, held back until the reader asks for it so nothing changes under their thumb */
 let pendingFeed = null;
 
@@ -407,6 +409,54 @@ function source(a, story) {
   );
 }
 
+/** What people said about the story: a couple of comments, translated when the browser can, and a link to the rest */
+function voicesOf(story) {
+  const v = story.voices;
+  const href = v ? safeUrl(v.url) : null;
+  if (!href || !Array.isArray(v.comments) || v.comments.length === 0) return null;
+  const site = LOCALIZED_SOURCES.has(v.source) ? t(`source.${v.source}`) : (SOURCE_LABELS[v.source] ?? v.source);
+  return h(
+    'div',
+    { class: 'voices' },
+    v.comments.map((c, i) => {
+      const id = `${story.key}#${i}`;
+      const open = openVoices.has(id);
+      const translation = translationOf(c, language(), () => redraw(story.key));
+      return h(
+        'button',
+        {
+          class: `voice${open ? ' is-open' : ''}`,
+          type: 'button',
+          'aria-expanded': String(open),
+          onclick: () => {
+            if (open) openVoices.delete(id);
+            else openVoices.add(id);
+            redraw(story.key);
+          },
+        },
+        translation
+          ? [
+              h('span', { class: 'voice-text', lang: language() }, translation),
+              open ? h('span', { class: 'voice-original', lang: c.lang }, c.text) : null,
+            ]
+          : h('span', { class: 'voice-text', lang: c.lang }, c.text),
+      );
+    }),
+    h(
+      'a',
+      {
+        class: 'voices-more',
+        href,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        translate: 'no',
+        onclick: () => markRead(story),
+      },
+      t('voices.more', { source: site, n: formatScore(v.count) }),
+    ),
+  );
+}
+
 function markRead(story) {
   if (!data.state.read.includes(story.key)) act('read', story);
 }
@@ -420,7 +470,7 @@ function storyItem(story, idPrefix, options = {}) {
   const official = story.appearances.every((a) => a.source === 'official');
 
   const titleId = `${idPrefix}-title`;
-  const translation = translationOf(story, language(), () => redraw(story.key));
+  const translation = translationOf({ lang: story.lang, text: story.title }, language(), () => redraw(story.key));
   const titleText = [
     h('span', { lang: story.lang }, story.title),
     translation ? h('span', { class: 'story-translation', lang: language() }, translation) : null,
@@ -504,6 +554,7 @@ function storyItem(story, idPrefix, options = {}) {
       'article',
       { class: `story${read ? ' is-read' : ''}`, 'aria-labelledby': titleId },
       title,
+      voicesOf(story),
       h('div', { class: 'story-footer' }, meta, actions),
     ),
   );

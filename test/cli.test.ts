@@ -1,13 +1,13 @@
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { build, distDir } from '#src/build.ts';
 import { run } from '#src/cli.ts';
-import { runCollect } from '#src/collect.ts';
-import { startStaticServer } from '#src/preview.ts';
+import { runCollect } from '#src/collect/collect.ts';
+import { build, distDir } from '#src/site/build.ts';
+import { startStaticServer } from '#src/site/preview.ts';
 
-vi.mock('#src/build.ts', () => ({ build: vi.fn(), distDir: vi.fn(() => '/out/dist') }));
-vi.mock('#src/collect.ts', () => ({ runCollect: vi.fn(async () => 7) }));
-vi.mock('#src/preview.ts', () => ({
+vi.mock('#src/site/build.ts', () => ({ build: vi.fn(), distDir: vi.fn(() => '/out/dist') }));
+vi.mock('#src/collect/collect.ts', () => ({ runCollect: vi.fn(async () => 7) }));
+vi.mock('#src/site/preview.ts', () => ({
   startStaticServer: vi.fn(async (site: { base: string }, port: number) => ({
     url: `http://127.0.0.1:${port}${site.base}`,
   })),

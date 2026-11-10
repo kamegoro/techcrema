@@ -1,6 +1,5 @@
-// Titles and comments in another language get a version in the page's language, translated on the device by the
-// browser's built-in Translator (desktop Chrome and Edge). Nothing is sent anywhere and nothing is paid for;
-// browsers without it show them as they are.
+// Titles and comments in another language, translated on the device by the browser's built-in Translator
+// (desktop Chrome and Edge): nothing is sent anywhere. Other browsers show them as they are.
 
 /** source language -> Promise of a translator, or null when the browser can't translate that pair */
 const translators = new Map();

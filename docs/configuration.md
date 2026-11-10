@@ -42,7 +42,7 @@ with:
 | `security` | Vulnerabilities, exploits and supply-chain security | security, vulnerability, vulnerabilities, cve, exploit, zero-day, … | Project Zero, GitHub Security Lab |
 | `neovim` | Neovim and Vim | neovim, nvim, vim, lua, treesitter, tree-sitter, … | Neovim, neovim/neovim releases |
 
-Missing one? Presets live in [`src/presets.ts`](../src/presets.ts); pull requests are welcome.
+Missing one? Presets live in [`src/config/presets.ts`](../src/config/presets.ts); pull requests are welcome.
 
 ## Topics
 

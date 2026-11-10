@@ -1,17 +1,25 @@
+import type { Lang } from './lib/text.ts';
+
+/** A site with a popularity signal: its front page, and optionally its stories under a tag */
+export interface Platform {
+  frontPage(now: Date): Promise<RawItem[]>;
+  byTag?(tag: string, now: Date): Promise<RawItem[]>;
+}
+
 export interface RawItem {
   source: SourceId;
   title: string;
   url: string;
-  /** The platform's own discussion page (e.g. HN comments), when it differs from the article URL */
+  /** The site's own comment page, when it isn't the article itself */
   discussionUrl?: string;
-  /** Raw popularity value (points, bookmarks, likes...). null for official sources. */
+  /** Points, bookmarks, likes…; null for official sources */
   score: number | null;
   scoreLabel?: string;
   tags: string[];
   publishedAt: string | null;
   publisher?: string;
   releaseKind?: ReleaseKind;
-  /** Topic tags this item was found under, when it came from a tag lookup */
+  /** The topic tags it was found under */
   lookups?: string[];
 }
 
@@ -35,7 +43,7 @@ export interface Story {
   url: string;
   title: string;
   domain: string;
-  lang: 'ja' | 'en' | 'zh';
+  lang: Lang;
   tags: string[];
   publishedAt: string | null;
   appearances: Appearance[];
@@ -45,11 +53,10 @@ export interface Story {
   interest: number;
   /** Matched topics, heaviest first; the story is listed under the first one */
   topics: string[];
-  /** Matched keywords (offered as mute suggestions) */
+  /** Offered as mute suggestions */
   matchedKeywords: string[];
   /** A keyword of its first topic is in the title itself, not only in the tags */
   titleMatch?: boolean;
-  /** Topic tags this story was found under by tag lookups */
   lookups?: string[];
   publisher?: string;
   releaseKind?: ReleaseKind;
@@ -57,7 +64,6 @@ export interface Story {
   groupedCount?: number;
   /** Shown on an earlier day, back because it kept climbing */
   resurfaced?: boolean;
-  /** What people said about it, from one discussion */
   voices?: Voices;
 }
 
@@ -107,7 +113,7 @@ export interface Feed {
 export interface Topic {
   weight: number;
   keywords: string[];
-  /** Tags looked up on Zenn, Qiita, dev.to and Lobsters; a story with one of them belongs to the topic */
+  /** Looked up on the sites that can search by tag; a story found under one belongs to the topic */
   tags: string[];
 }
 
@@ -117,7 +123,6 @@ export interface InterestConfig {
 
 export interface LayoutConfig {
   official_days: number;
-  /** Stories shown per topic before "Show more" */
   per_topic: number;
   trending: number;
   repos: number;

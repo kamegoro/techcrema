@@ -1,13 +1,12 @@
-/** Official sources (no popularity signal): blog RSS/Atom feeds and GitHub releases */
-
-import { parseFeed, parseFeedTitle } from '#src/feed-parser.ts';
-import { fetchJson, fetchText, githubHeaders } from '#src/http.ts';
-import { domainOf } from '#src/normalize.ts';
-import { truncate } from '#src/text.ts';
+// Sources with no popularity signal, shown whenever they have something new: blog feeds and GitHub releases.
+import { parseFeed, parseFeedTitle } from '#src/lib/feed-parser.ts';
+import { fetchJson, fetchText, githubHeaders } from '#src/lib/http.ts';
+import { truncate } from '#src/lib/text.ts';
+import { domainOf } from '#src/lib/url.ts';
 import type { RawItem, ReleaseKind } from '#src/types.ts';
-import { repoName } from './platforms.ts';
+import { repoName } from './github.ts';
 
-/** name is optional; without it the feed's own title (or the host name) is used */
+/** Without a `name`, the feed's own title (or its host) names the publisher */
 export async function fetchOfficialFeed(name: string | undefined, url: string): Promise<RawItem[]> {
   const xml = await fetchText(url);
   const publisher = name || truncate(parseFeedTitle(xml), 40) || domainOf(url);

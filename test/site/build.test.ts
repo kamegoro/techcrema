@@ -1,0 +1,54 @@
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ROOT } from '#src/lib/paths.ts';
+import { saveFeed } from '#src/lib/store.ts';
+import { build, distDir, localizeIndex } from '#src/site/build.ts';
+import type { Feed } from '#src/types.ts';
+import { tempDir } from '#test/support/temp-dir.ts';
+
+let out: string;
+
+beforeEach(async () => {
+  const tmp = await tempDir('build');
+  out = path.join(tmp, 'site');
+  vi.stubEnv('TECHCREMA_DATA_DIR', path.join(tmp, 'data'));
+  vi.stubEnv('TECHCREMA_OUT_DIR', out);
+});
+
+describe('build', () => {
+  it('needs a collected feed', async () => {
+    await expect(build()).rejects.toThrow(/feed\.json not found/);
+  });
+
+  it('publishes the page and feed.json, with the language and title baked in', async () => {
+    await saveFeed({ language: 'ja', title: 'Morning <Reads>', sections: [] } as unknown as Feed);
+    await build();
+    expect((await readdir(out)).sort()).toEqual((await readdir(path.join(ROOT, 'web'))).concat('feed.json').sort());
+    const html = await readFile(path.join(out, 'index.html'), 'utf8');
+    expect(html).toContain('<html lang="ja">');
+    expect(html).toContain('<title>Morning &lt;Reads&gt;</title>');
+  });
+
+  it('replaces whatever an earlier build left behind', async () => {
+    await saveFeed({ language: 'en', title: 'T', sections: [] } as unknown as Feed);
+    await build();
+    await writeFile(path.join(out, 'stale.txt'), 'left over');
+    await build();
+    expect(await readdir(out)).not.toContain('stale.txt');
+  });
+});
+
+describe('distDir', () => {
+  it('defaults to dist/ in the project', () => {
+    vi.stubEnv('TECHCREMA_OUT_DIR', undefined);
+    expect(distDir()).toBe(path.join(ROOT, 'dist'));
+  });
+});
+
+describe('localizeIndex', () => {
+  it('escapes every HTML special character', () => {
+    const html = '<html lang="en"><title>x</title><h1 class="brand-title">x</h1>';
+    expect(localizeIndex(html, 'en', `&<>"'`)).toContain('<h1 class="brand-title">&amp;&lt;&gt;&quot;&#39;</h1>');
+  });
+});

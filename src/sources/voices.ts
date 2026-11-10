@@ -1,20 +1,14 @@
-/**
- * What people said about a story: the top comments on Hacker News or Lobsters, or the fuller comments on
- * Hatena Bookmark. Public APIs only, read once per run for the stories on the page.
- */
-import { fetchJson } from '#src/http.ts';
-import { detectLang } from '#src/normalize.ts';
-import { htmlToText, truncate } from '#src/text.ts';
+// What people said about a story, from its discussion on Hatena Bookmark, Hacker News or Lobsters.
+import { fetchJson } from '#src/lib/http.ts';
+import { detectLang, htmlToText, truncate } from '#src/lib/text.ts';
 import type { Story, Voices } from '#src/types.ts';
-import { hatenaEntryUrl } from './platforms.ts';
+import { hatenaEntryUrl } from './hatena.ts';
 
-/** How many comments a story shows */
 const VOICES_PER_STORY = 2;
-/** Long comments are cut; the full text is one tap away on the discussion page */
 const MAX_COMMENT_CHARS = 280;
-/** Shorter comments are usually reactions ("+1", "nice") rather than something to learn from */
+/** Shorter ones are usually reactions ("+1", "nice"), not something to learn from */
 const MIN_COMMENT_CHARS = { hackernews: 40, lobsters: 40, hatena: 15 } as const;
-/** HN comments to look at before giving up; the first ones are the top-ranked */
+/** HN lists comments best first, so the first few are enough */
 const HN_COMMENTS_TO_TRY = 5;
 
 const comment = (text: string) => {
@@ -30,7 +24,6 @@ interface HnItem {
   dead?: boolean;
 }
 
-/** The top-ranked comments, in HN's own order */
 async function hackerNewsVoices(discussionUrl: string): Promise<Voices | null> {
   const id = new URL(discussionUrl).searchParams.get('id');
   if (!id) return null;
@@ -52,7 +45,6 @@ interface LobstersStory {
   comments: { comment_plain: string; score: number; depth: number; is_deleted?: boolean }[];
 }
 
-/** The highest-scored comments that start a thread */
 async function lobstersVoices(discussionUrl: string): Promise<Voices> {
   const data = await fetchJson<LobstersStory>(`${discussionUrl.replace(/\/$/, '')}.json`);
   const comments = data.comments
@@ -81,16 +73,15 @@ interface StarEntries {
   entries: { uri: string; stars: unknown[]; colored_stars?: { stars: unknown[] }[] }[];
 }
 
-/** Comments weighed by their stars: the newest ones, as Hatena lists them first */
+/** Hatena lists the newest first */
 const HATENA_COMMENTS_TO_WEIGH = 100;
-/** Hatena Star answers for several comments at once; this keeps each request's URL a sensible length */
+/** Keeps each Hatena Star request's URL a sensible length */
 const STAR_URIS_PER_REQUEST = 50;
 
 /** A bookmark comment's own page, which is what Hatena Star files its stars under */
 const bookmarkPage = (eid: string, b: HatenaBookmark) =>
   `https://b.hatena.ne.jp/${b.user}/${b.timestamp.slice(0, 10).replaceAll('/', '')}#bookmark-${eid}`;
 
-/** Stars (all colors) on each page */
 async function starsOn(pages: string[]): Promise<Map<string, number>> {
   const stars = new Map<string, number>();
   for (let i = 0; i < pages.length; i += STAR_URIS_PER_REQUEST) {
@@ -107,10 +98,7 @@ async function starsOn(pages: string[]): Promise<Map<string, number>> {
   return stars;
 }
 
-/**
- * The comments Hatena users starred most, like Hatena's own "popular comments";
- * longer ones first among equals, and by length alone when the stars can't be read
- */
+/** The most-starred comments, like Hatena's own "popular comments"; by length when the stars can't be read */
 async function hatenaVoices(url: string): Promise<Voices | null> {
   const entry = await fetchJson<HatenaEntry | null>(
     `https://b.hatena.ne.jp/entry/json/?url=${encodeURIComponent(url)}`,
@@ -129,10 +117,7 @@ async function hatenaVoices(url: string): Promise<Voices | null> {
   return { source: 'hatena', count: entry.count, url: hatenaEntryUrl(url), comments };
 }
 
-/**
- * The first discussion with something to show, in the order a reader of `language` would want:
- * Hatena (in Japanese) first on Japanese pages, when Hatena is one of the sources
- */
+/** The first discussion with something to say; Hatena, which is in Japanese, comes first when `hatena` is set */
 export async function findVoices(story: Story, options: { hatena: boolean }): Promise<Voices | undefined> {
   const discussion = (source: string) => story.appearances.find((a) => a.source === source)?.discussionUrl;
   const hn = discussion('hackernews');

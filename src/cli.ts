@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { build, distDir } from './build.ts';
-import { runCollect } from './collect.ts';
-import { startStaticServer } from './preview.ts';
+import { runCollect } from './collect/collect.ts';
+import { build, distDir } from './site/build.ts';
+import { startStaticServer } from './site/preview.ts';
 
 export type Log = (message: string) => void;
 
@@ -11,7 +11,6 @@ const USAGE = `Usage:
   techcrema build                                     assemble the static site
   techcrema preview [--dir DIR] [--base PATH] [--port N]  serve a built site locally`;
 
-/** Runs one command and returns the exit code */
 export async function run(
   args: string[],
   log: Log = console.log,

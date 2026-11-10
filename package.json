@@ -6,7 +6,8 @@
   "type": "module",
   "imports": {
     "#src/*": "./src/*",
-    "#e2e/*": "./e2e/*"
+    "#e2e/*": "./e2e/*",
+    "#test/*": "./test/*"
   },
   "engines": {
     "node": ">=24"

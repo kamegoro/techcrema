@@ -61,38 +61,42 @@ npm run demo -- dist docs
 
 ## Project layout
 
+The collector keeps its calculations apart from everything that touches the outside world. `src/ranking/` is plain functions on data, so most of the logic is tested without mocks; fetching, files and the clock stay in `src/collect/`, `src/sources/` and `src/lib/`. Folders are named after what they do.
+
 ```
-action.yml            The GitHub Action (composite): install → collect → build → deploy to Pages
-src/bin.ts, cli.ts    Command line entry: collect, build, preview
-src/config.ts         Language defaults, YAML file and action inputs → one validated Config
-src/presets.ts        Ready-made topics with official feeds
-src/collect.ts        The pipeline: fetch → merge → score → sections → feed.json
-src/sources/          One fetcher per source (platforms.ts), RSS feeds and GitHub releases (official.ts)
-src/normalize.ts      URL normalization, merging the same story across platforms, language detection
-src/rank.ts           Percentiles, interest matching, mutes, sections
-src/http.ts           Polite fetch: per-host queue, delays, timeouts, size limits
-src/build.ts          web/ + feed.json → static site
-src/preview.ts        Static server for previews, E2E tests and the demo recorder
-web/                  The page: vanilla JS, no framework, no build step
-test/                 Vitest unit tests, one file per module
-e2e/                  Playwright browser tests
+action.yml          The GitHub Action (composite): install → collect → build → deploy to Pages
+src/bin.ts, cli.ts  Command line: collect, build, preview
+src/types.ts        Shared types: RawItem, Story, Section, Feed…
+src/collect/        One run: fetch jobs → merge → rank → sections → comments → feed.json, and the Actions summary
+src/config/         Language defaults, YAML file and action inputs → one validated Config; topic presets
+src/sources/        One file per site (front page and tag lookup), official feeds and releases, comments
+src/ranking/        Merging the same story across sites, percentiles, topic matching and mutes, sections
+src/site/           web/ + feed.json → static site; the static server for previews and tests
+src/lib/            Polite HTTP, feed parsing, the data files, dates, text and URLs
+web/                The page: plain ES modules, no framework, no build step
+  app.js            Holds the feed and the reader's state; turns taps into changes
+  story.js          One story: title, translation, comments, sources, buttons; redrawn in place
+  pages.js          Header, Today, Read later and Muted
+  feed.js, state.js Fetching the feed and what to show; the reader's saved state
+test/               Vitest unit tests, mirroring src/
+e2e/                Playwright browser tests: specs read as steps from e2e/support/reader.ts
 ```
 
 ## Adding a source
 
 A source must have a **popularity signal** (points, likes, stars…) and an **official API, public JSON endpoint or RSS feed**. We don't scrape HTML, and we don't add sources whose terms forbid automated access.
 
-1. Write a fetcher in `src/sources/platforms.ts` that returns `RawItem[]`: title, url, `score`, a short `scoreLabel` (`'pt'`, `'likes'`…) and `publishedAt`. Set `discussionUrl` when the platform has its own comment page.
-2. Add its id to `SourceId` in `src/types.ts`, `PLATFORMS` in `src/config.ts`, and `PLATFORM_FETCHERS` in `src/collect.ts`.
-3. If it should be on by default for a language, add it to that language in `LANGUAGE_DEFAULTS` in `src/config.ts`.
-4. If the host asks for a crawl delay (check its `robots.txt`), add it to `HOST_INTERVAL_MS` in `src/http.ts`.
-5. Add a badge label in `SOURCE_LABELS` in `web/app.js` and a color in `web/style.css` (`.badge[data-source='…']`).
-6. Add a test with a small response fixture in `test/platforms.test.ts`, and a row to the Sources table in [docs/configuration.md](docs/configuration.md#sources).
+1. Add `src/sources/<site>.ts` exporting a `Platform`: `frontPage(now)` returns `RawItem[]` (title, url, `score`, a short `scoreLabel` such as `'pt'` or `'likes'`, `publishedAt`, and `discussionUrl` when the site has its own comment page). Add `byTag(tag, now)` if the site can list stories by tag.
+2. Add its id to `SourceId` in `src/types.ts`, `PLATFORM_IDS` in `src/config/config.ts`, and `PLATFORMS` in `src/sources/index.ts`.
+3. If it should be on by default for a language, add it to that language in `LANGUAGE_DEFAULTS` in `src/config/config.ts`.
+4. If the host asks for a crawl delay (check its `robots.txt`), add it to `HOST_INTERVAL_MS` in `src/lib/http.ts`.
+5. Add its name in `SITE_NAMES` in `web/story.js` and a color in `web/style.css` (`.source[data-source="…"]`).
+6. Add `test/sources/<site>.test.ts` with a small response fixture, and a row to the Sources table in [docs/configuration.md](docs/configuration.md#sources).
 
 ## Adding a UI language
 
 1. Copy the `en` block in `web/i18n.js` and translate every key.
-2. Add the code to `LANGUAGES` and defaults to `LANGUAGE_DEFAULTS` in `src/config.ts`, including the sources that make sense for that audience.
+2. Add the code to `LANGUAGES` and defaults to `LANGUAGE_DEFAULTS` in `src/config/config.ts`, including the sources that make sense for that audience.
 3. Add the language to the `language` row in [docs/configuration.md](docs/configuration.md).
 
 ## Dependency updates

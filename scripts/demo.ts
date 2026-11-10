@@ -10,7 +10,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
-import { startStaticServer } from '#src/preview.ts';
+import { startStaticServer } from '#src/site/preview.ts';
 
 const siteDir = path.resolve(process.argv[2] ?? 'dist');
 const outDir = path.resolve(process.argv[3] ?? 'docs');

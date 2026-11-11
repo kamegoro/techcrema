@@ -20,6 +20,31 @@ export function renderHeader({ feed, sections, state }) {
     if (link.dataset.tab === tab) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   }
+  renderFooter(feed);
+}
+
+/** What the page is, who runs it, and where to ask for something to be taken down */
+function renderFooter(feed) {
+  const repo = /^[\w.-]+\/[\w.-]+$/.test(feed?.repository ?? '') ? feed.repository : null;
+  $('page-footer').replaceChildren(
+    ...(feed
+      ? [
+          h('p', {}, t('footer.about')),
+          repo ? h('p', {}, t('footer.owner', { repo })) : null,
+          repo
+            ? h(
+                'p',
+                {},
+                h(
+                  'a',
+                  { href: `https://github.com/${repo}/issues`, target: '_blank', rel: 'noopener noreferrer' },
+                  t('footer.contact'),
+                ),
+              )
+            : null,
+        ]
+      : []),
+  );
 }
 
 function jumpTo(event, id) {

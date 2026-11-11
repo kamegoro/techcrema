@@ -23,7 +23,6 @@
   --src-zenn: #3ea8ff;
   --src-qiita: #55c500;
   --src-devto: #3b49df;
-  --src-lobsters: #ac130d;
   --src-huggingface: #e6a800;
   --src-github: #6e7781;
   --src-official: #3d5afe;
@@ -60,7 +59,6 @@
     --shadow: none;
     --header-bg: rgb(14 16 20 / 0.85);
     --backdrop: rgb(0 0 0 / 0.6);
-    --src-lobsters: #e5534b;
     --src-github: #9198a1;
     --src-official: #8c9bff;
     --src-release: #3fb950;
@@ -89,7 +87,6 @@
   --shadow: none;
   --header-bg: rgb(14 16 20 / 0.85);
   --backdrop: rgb(0 0 0 / 0.6);
-  --src-lobsters: #e5534b;
   --src-github: #9198a1;
   --src-official: #8c9bff;
   --src-release: #3fb950;
@@ -347,6 +344,24 @@ a {
   outline: none;
 }
 
+.page-footer {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 max(var(--gutter), env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom))
+    max(var(--gutter), env(safe-area-inset-left));
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.page-footer p {
+  margin: 0 0 4px;
+}
+
+.page-footer a {
+  color: inherit;
+}
+
 .section {
   margin-top: 24px;
 }
@@ -406,6 +421,7 @@ a {
 
 /* Above the story link, which covers the whole story */
 .voice,
+.voice-by,
 .voices-more {
   position: relative;
   z-index: 1;
@@ -445,6 +461,24 @@ a {
   color: var(--text-muted);
   font-size: 12.5px;
   overflow-wrap: anywhere;
+}
+
+.voice-item {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  justify-items: start;
+}
+
+.voice-by {
+  margin-left: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.voice-by:hover {
+  text-decoration: underline;
 }
 
 .voices-more {
@@ -561,9 +595,6 @@ a.source:hover {
 }
 .source[data-source="devto"] {
   --dot: var(--src-devto);
-}
-.source[data-source="lobsters"] {
-  --dot: var(--src-lobsters);
 }
 .source[data-source="huggingface"] {
   --dot: var(--src-huggingface);

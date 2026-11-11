@@ -1,22 +1,28 @@
-// What people said about a story, from its discussion on Hatena Bookmark, Hacker News or Lobsters.
+// What people said about a story, from its discussion on Hatena Bookmark or Hacker News.
 import { fetchJson } from '#src/lib/http.ts';
 import { detectLang, htmlToText, truncate } from '#src/lib/text.ts';
-import type { Story, Voices } from '#src/types.ts';
+import type { Comment, Story, Voices } from '#src/types.ts';
 import { hatenaEntryUrl } from './hatena.ts';
 
 const VOICES_PER_STORY = 2;
-const MAX_COMMENT_CHARS = 280;
-/** Shorter ones are usually reactions ("+1", "nice"), not something to learn from */
-const MIN_COMMENT_CHARS = { hackernews: 40, lobsters: 40, hatena: 15 } as const;
+/**
+ * A comment is someone's work, so only a part of it is shown, like a search result's snippet:
+ * at most half of it and never more than this, credited to its author and linking to the whole
+ */
+const MAX_EXCERPT_CHARS = 100;
+/** Shorter ones are usually reactions ("+1", "nice"), and half of them says nothing */
+const MIN_COMMENT_CHARS = { hackernews: 60, hatena: 30 } as const;
 /** HN lists comments best first, so the first few are enough */
 const HN_COMMENTS_TO_TRY = 5;
 
-const comment = (text: string) => {
-  const cut = truncate(text, MAX_COMMENT_CHARS);
-  return { text: cut, lang: detectLang(cut) };
-};
+function excerpt(text: string, author: string, url: string): Comment {
+  const half = Math.floor(Array.from(text).length / 2);
+  const part = truncate(text, Math.min(MAX_EXCERPT_CHARS, half));
+  return { text: part, lang: detectLang(part), author, url };
+}
 
 interface HnItem {
+  by?: string;
   kids?: number[];
   descendants?: number;
   text?: string;
@@ -30,29 +36,16 @@ async function hackerNewsVoices(discussionUrl: string): Promise<Voices | null> {
   const item = (url: string | number) =>
     fetchJson<HnItem | null>(`https://hacker-news.firebaseio.com/v0/item/${url}.json`);
   const story = await item(id);
-  const comments: Voices['comments'] = [];
+  const comments: Comment[] = [];
   for (const kid of (story?.kids ?? []).slice(0, HN_COMMENTS_TO_TRY)) {
     const c = await item(kid);
-    const text = c && !c.deleted && !c.dead && c.text ? htmlToText(c.text) : '';
-    if (text.length >= MIN_COMMENT_CHARS.hackernews) comments.push(comment(text));
+    const text = c && !c.deleted && !c.dead && c.by && c.text ? htmlToText(c.text) : '';
+    if (c?.by && text.length >= MIN_COMMENT_CHARS.hackernews) {
+      comments.push(excerpt(text, c.by, `https://news.ycombinator.com/item?id=${kid}`));
+    }
     if (comments.length === VOICES_PER_STORY) break;
   }
   return { source: 'hackernews', count: story?.descendants ?? 0, url: discussionUrl, comments };
-}
-
-interface LobstersStory {
-  comment_count: number;
-  comments: { comment_plain: string; score: number; depth: number; is_deleted?: boolean }[];
-}
-
-async function lobstersVoices(discussionUrl: string): Promise<Voices> {
-  const data = await fetchJson<LobstersStory>(`${discussionUrl.replace(/\/$/, '')}.json`);
-  const comments = data.comments
-    .filter((c) => c.depth === 0 && !c.is_deleted && c.comment_plain.trim().length >= MIN_COMMENT_CHARS.lobsters)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, VOICES_PER_STORY)
-    .map((c) => comment(c.comment_plain.trim()));
-  return { source: 'lobsters', count: data.comment_count, url: discussionUrl, comments };
 }
 
 interface HatenaBookmark {
@@ -107,13 +100,13 @@ async function hatenaVoices(url: string): Promise<Voices | null> {
   const candidates = entry.bookmarks
     .filter((b) => b.comment.trim().length >= MIN_COMMENT_CHARS.hatena)
     .slice(0, HATENA_COMMENTS_TO_WEIGH)
-    .map((b) => ({ text: b.comment.trim(), page: bookmarkPage(entry.eid, b) }));
+    .map((b) => ({ text: b.comment.trim(), user: b.user, page: bookmarkPage(entry.eid, b) }));
   const stars = await starsOn(candidates.map((c) => c.page)).catch(() => new Map<string, number>());
   const starsOf = (c: { page: string }) => stars.get(c.page) ?? 0;
   const comments = candidates
     .sort((a, b) => starsOf(b) - starsOf(a) || b.text.length - a.text.length)
     .slice(0, VOICES_PER_STORY)
-    .map((c) => comment(c.text));
+    .map((c) => excerpt(c.text, `id:${c.user}`, c.page));
   return { source: 'hatena', count: entry.count, url: hatenaEntryUrl(url), comments };
 }
 
@@ -121,12 +114,7 @@ async function hatenaVoices(url: string): Promise<Voices | null> {
 export async function findVoices(story: Story, options: { hatena: boolean }): Promise<Voices | undefined> {
   const discussion = (source: string) => story.appearances.find((a) => a.source === source)?.discussionUrl;
   const hn = discussion('hackernews');
-  const lobsters = discussion('lobsters');
-  const candidates = [
-    options.hatena ? () => hatenaVoices(story.url) : null,
-    hn ? () => hackerNewsVoices(hn) : null,
-    lobsters ? () => lobstersVoices(lobsters) : null,
-  ];
+  const candidates = [options.hatena ? () => hatenaVoices(story.url) : null, hn ? () => hackerNewsVoices(hn) : null];
   for (const candidate of candidates) {
     if (!candidate) continue;
     try {

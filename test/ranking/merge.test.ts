@@ -108,7 +108,7 @@ describe('publish dates', () => {
       mergeIntoStories(
         publishedAt.map((d, i) => ({
           ...base,
-          source: (['hackernews', 'lobsters', 'devto'] as const)[i] ?? 'zenn',
+          source: (['hackernews', 'qiita', 'devto'] as const)[i] ?? 'zenn',
           publishedAt: d,
         })),
         () => 0.5,

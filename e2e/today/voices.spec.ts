@@ -12,7 +12,11 @@ test.describe('What people said', () => {
       - article "${STORY}":
         - heading "${STORY}" [level=3]
         - button "${LONG_COMMENT}" [expanded=false]
+        - link "Whole comment by pat":
+          - /url: https://news.ycombinator.com/item?id=b1
         - button "${SHORT_COMMENT}" [expanded=false]
+        - link "Whole comment by sam":
+          - /url: https://news.ycombinator.com/item?id=b2
         - link "All 230 reactions on HN":
           - /url: https://news.ycombinator.com/item?id=b
     `);
@@ -49,6 +53,15 @@ test.describe('What people said', () => {
     await expect(
       reader.story(story).getByRole('button', { name: `[ja] ${SHORT_COMMENT} ${SHORT_COMMENT}`, exact: true }),
     ).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('a comment without a safe link to the whole of it is shown without crediting a link', async ({ reader }) => {
+    const feed = makeFeed();
+    const comment = feed.sections[1]?.stories[1]?.voices?.comments[1];
+    if (comment) comment.url = 'javascript:window.__xss = true';
+    await reader.open(feed);
+    await expect(reader.story(STORY).getByRole('button', { name: SHORT_COMMENT })).toBeVisible();
+    await expect(reader.story(STORY).getByRole('link', { name: 'Whole comment by sam' })).toHaveCount(0);
   });
 
   test('comments whose discussion has no safe link are left out', async ({ reader }) => {

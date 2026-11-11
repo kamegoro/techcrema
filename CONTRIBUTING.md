@@ -84,7 +84,7 @@ e2e/                Playwright browser tests: specs read as steps from e2e/suppo
 
 ## Adding a source
 
-A source must have a **popularity signal** (points, likes, stars…) and an **official API, public JSON endpoint or RSS feed**. We don't scrape HTML, and we don't add sources whose terms forbid automated access.
+A source must have a **popularity signal** (points, likes, stars…) and an **official API, public JSON endpoint or RSS feed**. We don't scrape HTML, and we don't add sources whose terms or `robots.txt` turn away automated access (Lobsters was removed for this).
 
 1. Add `src/sources/<site>.ts` exporting a `Platform`: `frontPage(now)` returns `RawItem[]` (title, url, `score`, a short `scoreLabel` such as `'pt'` or `'likes'`, `publishedAt`, and `discussionUrl` when the site has its own comment page). Add `byTag(tag, now)` if the site can list stories by tag.
 2. Add its id to `SourceId` in `src/types.ts`, `PLATFORM_IDS` in `src/config/config.ts`, and `PLATFORMS` in `src/sources/index.ts`.

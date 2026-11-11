@@ -62,7 +62,7 @@ topics: |
 - Matching ignores case
 - A story that matches several topics is listed once, under the one with the highest weight (the first one written, on a tie)
 
-**Tags.** Front pages rarely carry niche topics, so TechCrema also looks each topic up by tag on Zenn, Qiita, dev.to and Lobsters (those in your `sources`), and keeps stories from the last 4 days with at least one reaction. They are ranked with everything else, so in a busy topic the less popular ones end up behind "Show more".
+**Tags.** Front pages rarely carry niche topics, so TechCrema also looks each topic up by tag on Zenn, Qiita and dev.to (those in your `sources`), and keeps stories from the last 4 days with at least one reaction. They are ranked with everything else, so in a busy topic the less popular ones end up behind "Show more".
 By default the tag is the topic's name (`Node.js` → `nodejs`). Set `tags` to look up others, or `tags: []` to skip the lookup. A name with spaces or non-ASCII characters has no default tag.
 
 ## Using a config file
@@ -89,12 +89,13 @@ layout:
 
 `for_you`, `for_you_min_local` and `discover` from v1.0 are still accepted and ignored.
 
+Lobsters was a source until v1.2.7. It asks bots other than search engines not to crawl it, so it was dropped; `lobsters` in `sources` is still accepted and skipped.
+
 ## Sources
 
 | Source | `sources` id | Popularity signal | Default for |
 |---|---|---|---|
 | [Hacker News](https://news.ycombinator.com) | `hackernews` | points (front page) | `en`, `ja` |
-| [Lobsters](https://lobste.rs) | `lobsters` | score | `en`, `ja` |
 | [dev.to](https://dev.to) | `devto` | reactions | `en`, `ja` |
 | [Hugging Face Papers](https://huggingface.co/papers) | `huggingface` | upvotes | `en`, `ja` |
 | [GitHub](https://github.com) (repos created in the last 7 days) | `github` | stars | `en`, `ja` |

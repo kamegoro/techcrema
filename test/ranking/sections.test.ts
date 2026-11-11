@@ -75,13 +75,13 @@ describe('primarySource', () => {
           appearances: [
             { source: 'official', score: null, percentile: null },
             { source: 'hackernews', score: 1, percentile: 0.6 },
-            { source: 'lobsters', score: 1, percentile: 0.9 },
+            { source: 'qiita', score: 1, percentile: 0.9 },
             { source: 'devto', score: 1, percentile: 0.7 },
             { source: 'github_release', score: null, percentile: null },
           ],
         }),
       ),
-    ).toBe('lobsters');
+    ).toBe('qiita');
     expect(primarySource(story({ key: 'y', appearances: from('github_release', null) }))).toBe('github_release');
   });
 });

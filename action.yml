@@ -16,7 +16,7 @@ inputs:
     description: 'What you care about, as YAML; each topic gets a section. e.g. "Rust: [rust, cargo]" one per line'
     required: false
   sources:
-    description: 'Comma-separated sources (hackernews, lobsters, devto, huggingface, github, hatena, zenn, qiita). Defaults depend on language.'
+    description: 'Comma-separated sources (hackernews, devto, huggingface, github, hatena, zenn, qiita). Defaults depend on language.'
     required: false
   official:
     description: 'One per line: an RSS/Atom URL (optionally "Name URL") or a GitHub owner/repo for releases'

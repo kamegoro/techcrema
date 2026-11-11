@@ -11,7 +11,7 @@ describe('resolveConfig', () => {
     const c = resolveConfig({}, {});
     expect(c.language).toBe('en');
     expect(c.timezone).toBe('UTC');
-    expect(c.sources).toEqual(['hackernews', 'lobsters', 'devto', 'huggingface', 'github']);
+    expect(c.sources).toEqual(['hackernews', 'devto', 'huggingface', 'github']);
     expect(c.layout.per_topic).toBe(5);
   });
 
@@ -49,6 +49,10 @@ describe('resolveConfig', () => {
   it('still accepts layout settings that v1.0 had', () => {
     const c = resolveConfig({ layout: { for_you: 20, for_you_min_local: 3, discover: 2 } }, {});
     expect(c.layout).toEqual(resolveConfig({}, {}).layout);
+  });
+
+  it('skips Lobsters, which is no longer a source, so older settings keep working', () => {
+    expect(resolveConfig({}, { sources: 'hackernews, lobsters' }).sources).toEqual(['hackernews']);
   });
 
   it('explains what is wrong', () => {

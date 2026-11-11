@@ -32,7 +32,6 @@ export type SourceId =
   | 'zenn'
   | 'qiita'
   | 'devto'
-  | 'lobsters'
   | 'huggingface'
   | 'github_new_repos'
   | 'official'
@@ -69,11 +68,19 @@ export interface Story {
 
 /** A couple of comments from a story's discussion, so the page shows what people make of it */
 export interface Voices {
-  source: 'hackernews' | 'lobsters' | 'hatena';
+  source: 'hackernews' | 'hatena';
   /** How many comments or bookmarks the discussion has in all */
   count: number;
   url: string;
-  comments: { text: string; lang: Story['lang'] }[];
+  comments: Comment[];
+}
+
+/** Only a part of the comment, credited to its author and linking to the whole of it */
+export interface Comment {
+  text: string;
+  lang: Story['lang'];
+  author: string;
+  url: string;
 }
 
 export interface Appearance {
@@ -106,6 +113,8 @@ export interface Feed {
   title: string;
   /** How many days back the official section looks (shown in its description) */
   officialDays: number;
+  /** The repository publishing the page ("owner/name"): whom to ask about what it shows */
+  repository?: string;
   sections: Section[];
   errors: { source: string; message: string }[];
 }

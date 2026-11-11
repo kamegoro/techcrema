@@ -103,8 +103,29 @@ test.describe('Today page', () => {
   });
 
   test('sources that could not be fetched are listed', async ({ reader }) => {
-    await reader.open(makeFeed({ errors: [{ source: 'lobsters', message: 'HTTP 503' }] }));
-    await reader.expectText('Could not fetch: lobsters');
+    await reader.open(makeFeed({ errors: [{ source: 'qiita', message: 'HTTP 503' }] }));
+    await reader.expectText('Could not fetch: qiita');
+  });
+
+  test('the bottom of the page says what it is, who runs it and where to ask for something to be removed', async ({
+    reader,
+    page,
+  }) => {
+    await reader.open(makeFeed({ repository: 'alice/my-feed' }));
+    const footer = page.getByRole('contentinfo');
+    await expect(footer).toContainText('short parts of public comments');
+    await expect(footer).toContainText('Run by the owner of alice/my-feed.');
+    await expect(footer.getByRole('link', { name: 'To have something removed, open an issue' })).toHaveAttribute(
+      'href',
+      'https://github.com/alice/my-feed/issues',
+    );
+  });
+
+  test('a page built outside GitHub still says what it is, without a place to ask', async ({ reader, page }) => {
+    await reader.open(makeFeed({ repository: 'not a repo"><script>' }));
+    const footer = page.getByRole('contentinfo');
+    await expect(footer).toContainText('short parts of public comments');
+    await expect(footer.getByRole('link')).toHaveCount(0);
   });
 
   test('a missing feed is explained', async ({ reader }) => {

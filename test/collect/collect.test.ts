@@ -16,8 +16,7 @@ vi.mock('#src/sources/index.ts', () => {
   return {
     PLATFORMS: {
       hackernews: { frontPage: vi.fn() },
-      lobsters: { frontPage: vi.fn(), byTag: vi.fn() },
-      devto: quiet(),
+      devto: { frontPage: vi.fn(), byTag: vi.fn() },
       huggingface: quiet(),
       github: quiet(),
       hatena: quiet(),
@@ -29,7 +28,7 @@ vi.mock('#src/sources/index.ts', () => {
 });
 
 const hackerNews = vi.mocked(PLATFORMS.hackernews.frontPage);
-const lobstersTag = vi.mocked(PLATFORMS.lobsters.byTag as NonNullable<typeof PLATFORMS.lobsters.byTag>);
+const devtoTag = vi.mocked(PLATFORMS.devto.byTag as NonNullable<typeof PLATFORMS.devto.byTag>);
 vi.mock('#src/sources/official.ts', () => ({ fetchOfficialFeed: vi.fn(), fetchGithubReleases: vi.fn() }));
 vi.mock('#src/sources/voices.ts', () => ({ findVoices: vi.fn(async () => undefined) }));
 
@@ -57,12 +56,12 @@ beforeEach(async () => {
     item({ title: 'Rust 2.0 released', url: 'https://a.dev/rust', score: 500 }),
     item({ title: 'Something else', url: 'https://b.dev/else', score: 50 }),
   ]);
-  vi.mocked(PLATFORMS.lobsters.frontPage).mockRejectedValue(new Error('HTTP 503'));
-  lobstersTag.mockResolvedValue([
-    item({ source: 'lobsters', title: 'Borrow checker notes', url: 'https://c.dev/notes', score: 4, tags: ['rust'] }),
+  vi.mocked(PLATFORMS.devto.frontPage).mockRejectedValue(new Error('HTTP 503'));
+  devtoTag.mockResolvedValue([
+    item({ source: 'devto', title: 'Borrow checker notes', url: 'https://c.dev/notes', score: 4, tags: ['rust'] }),
     // Nobody reacted to these, so the lookup leaves them out
-    item({ source: 'lobsters', title: 'Rust thoughts', url: 'https://c.dev/quiet', score: 0, tags: ['rust'] }),
-    item({ source: 'lobsters', title: 'Rust notes', url: 'https://c.dev/unscored', score: null, tags: ['rust'] }),
+    item({ source: 'devto', title: 'Rust thoughts', url: 'https://c.dev/quiet', score: 0, tags: ['rust'] }),
+    item({ source: 'devto', title: 'Rust notes', url: 'https://c.dev/unscored', score: null, tags: ['rust'] }),
   ]);
   vi.mocked(fetchOfficialFeed).mockResolvedValue([
     item({
@@ -80,7 +79,7 @@ describe('collect', () => {
   const config = () =>
     resolveConfig(
       {
-        sources: ['hackernews', 'lobsters'],
+        sources: ['hackernews', 'devto'],
         topics: { rust: ['rust'] },
         mute: { keywords: ['else'] },
         official: ['https://nodejs.org/feed.xml', 'Node.js https://nodejs.org/feed2.xml', 'nodejs/node'],
@@ -94,16 +93,18 @@ describe('collect', () => {
     hackerNews.mockResolvedValue([...listed, item({ url: 'javascript:alert(1)' })]);
     const log = vi.fn();
     const { feed, counts } = await collect(config(), log);
-    expect(counts).toEqual({ hackernews: 2, 'lobsters #rust': 1, 'https://nodejs.org/feed.xml': 1, 'Node.js': 1 });
+    expect(counts).toEqual({ hackernews: 2, 'devto #rust': 1, 'https://nodejs.org/feed.xml': 1, 'Node.js': 1 });
     expect(feed.errors).toEqual([
-      { source: 'lobsters', message: 'HTTP 503' },
+      { source: 'devto', message: 'HTTP 503' },
       { source: 'nodejs/node', message: 'rate limited' },
     ]);
-    expect(log).toHaveBeenCalledWith('  ✗ lobsters: HTTP 503');
+    expect(log).toHaveBeenCalledWith('  ✗ devto: HTTP 503');
   });
 
   it('ranks, applies mutes from the settings and writes the feed', async () => {
+    vi.stubEnv('GITHUB_REPOSITORY', 'alice/my-feed');
     const { feed } = await collect(config());
+    expect(feed.repository).toBe('alice/my-feed');
     const byId = Object.fromEntries(feed.sections.map((s) => [s.title ?? s.id, s.stories.map((st) => st.title)]));
     expect(byId.rust).toEqual(['Rust 2.0 released', 'Borrow checker notes']);
     expect(byId.official).toEqual(['Node.js 26.1']);
@@ -115,7 +116,7 @@ describe('collect', () => {
   });
 
   it("saves today's scores and compares them with earlier days", async () => {
-    await saveScoreSnapshot('2026-11-07', { hackernews: [1000, 2000], lobsters: [10] });
+    await saveScoreSnapshot('2026-11-07', { hackernews: [1000, 2000], devto: [10] });
     const listed = await hackerNews(NOW);
     // A story without a score (e.g. a Hatena entry missing its count) stays out of the scale
     hackerNews.mockResolvedValue([...listed, item({ url: 'https://d.dev/unscored', score: null })]);
@@ -124,7 +125,7 @@ describe('collect', () => {
     // 500 among [1000, 2000, 500, 50]: one lower, itself counted half → (1 + 0.5) / 4
     expect(rust?.appearances[0]?.percentile).toBe(0.375);
     // Scores from the tag lookup don't go into the scale
-    expect(await loadScoreWindow('2026-11-09')).toEqual({ hackernews: [1000, 2000, 500, 50], lobsters: [10] });
+    expect(await loadScoreWindow('2026-11-09')).toEqual({ hackernews: [1000, 2000, 500, 50], devto: [10] });
   });
 
   it('adds what people said to the stories on the page, looking on Hatena only for Japanese pages', async () => {
@@ -170,7 +171,7 @@ describe('runCollect', () => {
   });
 
   beforeEach(async () => {
-    await writeFile(path.join(tmp, 'config.yml'), 'sources: [hackernews, lobsters]\ntimezone: Asia/Tokyo\n');
+    await writeFile(path.join(tmp, 'config.yml'), 'sources: [hackernews, devto]\ntimezone: Asia/Tokyo\n');
   });
 
   it('collects with the configured time zone and suggests topics when there are none', async () => {
@@ -179,7 +180,7 @@ describe('runCollect', () => {
     expect(await runCollect(e, log)).toBe(0);
     expect(process.env.TZ).toBe('Asia/Tokyo');
     expect(log).toHaveBeenCalledWith('Collecting (en, Asia/Tokyo; topics: none)…');
-    expect(log).toHaveBeenCalledWith('  failed: lobsters');
+    expect(log).toHaveBeenCalledWith('  failed: devto');
     expect(log).toHaveBeenCalledWith(expect.stringContaining('Tip: add `topics`'));
   });
 
@@ -191,7 +192,7 @@ describe('runCollect', () => {
 
   it('fails in strict mode when a source failed, and passes when none did', async () => {
     expect(await runCollect(env({ TECHCREMA_STRICT: '1' }), vi.fn())).toBe(1);
-    vi.mocked(PLATFORMS.lobsters.frontPage).mockResolvedValue([]);
+    vi.mocked(PLATFORMS.devto.frontPage).mockResolvedValue([]);
     const log = vi.fn();
     expect(await runCollect(env({ TECHCREMA_STRICT: '1', TC_TOPICS: 'rust: [rust]' }), log)).toBe(0);
     expect(log).not.toHaveBeenCalledWith(expect.stringContaining('failed:'));
@@ -211,7 +212,7 @@ describe('summarize', () => {
       { id: 'topic-1', title: 'go', limit: 1, stories: [] },
       { id: 'trending', limit: 2, stories: [] },
     ],
-    errors: [{ source: 'lobsters', message: 'HTTP 503 | down\\ |\nnext line' }],
+    errors: [{ source: 'devto', message: 'HTTP 503 | down\\ |\nnext line' }],
   };
 
   it('reports sections, sources, failures and topics without stories', () => {
@@ -221,7 +222,7 @@ describe('summarize', () => {
     expect(md).toMatch(/\| trending \| 0 \| 0 \|/);
     expect(md).toMatch(/\| hackernews \| 30 \|/);
     // Pipes, backslashes and line breaks from a remote error message can't break out of the table cell
-    expect(md).toContain('| ❌ lobsters | HTTP 503 \\| down\\\\ \\| next line |');
+    expect(md).toContain('| ❌ devto | HTTP 503 \\| down\\\\ \\| next line |');
     expect(md).toMatch(/Topics with no stories today: go\./);
   });
 

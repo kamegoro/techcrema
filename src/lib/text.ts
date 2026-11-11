@@ -52,5 +52,5 @@ export function detectLang(text: string): Lang {
   return 'en';
 }
 
-/** How Zenn, dev.to and Lobsters spell a tag: "Node.js" → "nodejs" */
+/** How Zenn and dev.to spell a tag: "Node.js" → "nodejs" */
 export const tagSlug = (tag: string) => tag.toLowerCase().replace(/[^a-z0-9]/g, '');

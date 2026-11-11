@@ -8,10 +8,15 @@ const TIMEOUT_MS = 20_000;
 /** Upper bound so a huge response can't exhaust memory (the largest feed we know of is under 1 MB) */
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
-/** On Actions, name the repository running the job, so each user's requests identify their own repo */
-export function userAgent(env: NodeJS.ProcessEnv = process.env): string {
+/** On Actions, the repository running the job ("owner/name"), which is who runs the page */
+export function ownRepository(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const repo = env.GITHUB_REPOSITORY ?? '';
-  return `techcrema/1 (personal tech reader; github.com/${/^[\w.-]+\/[\w.-]+$/.test(repo) ? repo : 'kamegoro/techcrema'})`;
+  return /^[\w.-]+\/[\w.-]+$/.test(repo) ? repo : undefined;
+}
+
+/** Each user's requests name their own repository, so a site knows whom to contact */
+export function userAgent(env: NodeJS.ProcessEnv = process.env): string {
+  return `techcrema/1 (personal tech reader; github.com/${ownRepository(env) ?? 'kamegoro/techcrema'})`;
 }
 
 function sleep(ms: number): Promise<void> {

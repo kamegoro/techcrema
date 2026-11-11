@@ -9,7 +9,6 @@ const SITE_NAMES = {
   zenn: 'Zenn',
   qiita: 'Qiita',
   devto: 'dev.to',
-  lobsters: 'Lobsters',
   huggingface: 'HF Papers',
   github_new_repos: 'GitHub',
   official: 'Official',
@@ -67,11 +66,29 @@ export function createStoryView(on) {
     return h('h3', { class: 'story-title', id: titleId }, link);
   }
 
+  /** Who wrote the comment, linking to the whole of it, since only a part is shown here */
+  function byline(c) {
+    const href = typeof c.author === 'string' && c.url ? safeUrl(c.url) : null;
+    if (!href) return null;
+    return h(
+      'a',
+      {
+        class: 'voice-by',
+        href,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        translate: 'no',
+        'aria-label': t('voice.whole', { author: c.author }),
+      },
+      `\u2014 ${c.author}`,
+    );
+  }
+
   function comment(story, c, index) {
     const id = `${story.key}#${index}`;
     const open = openComments.has(id);
     const translation = translated(c.text, c.lang, story);
-    return h(
+    const bubble = h(
       'button',
       {
         class: `voice${open ? ' is-open' : ''}`,
@@ -90,6 +107,7 @@ export function createStoryView(on) {
           ]
         : h('span', { class: 'voice-text', lang: c.lang }, c.text),
     );
+    return h('div', { class: 'voice-item' }, bubble, byline(c));
   }
 
   function voices(story) {

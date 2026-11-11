@@ -11,7 +11,6 @@ export type Language = (typeof LANGUAGES)[number];
 /** `github` means new repositories gaining stars */
 export const PLATFORM_IDS = [
   'hackernews',
-  'lobsters',
   'devto',
   'huggingface',
   'github',
@@ -45,6 +44,8 @@ const BASE_LAYOUT: LayoutConfig = {
 
 /** Layout settings from v1.0 that no longer exist; still accepted so older config files keep working */
 const RETIRED_LAYOUT_KEYS = new Set(['for_you', 'for_you_min_local', 'discover']);
+/** Sources that were dropped (Lobsters asks bots other than search engines to stay away); still accepted and skipped */
+const RETIRED_SOURCES = new Set(['lobsters']);
 
 const LANGUAGE_DEFAULTS: Record<Language, Config> = {
   en: {
@@ -52,7 +53,7 @@ const LANGUAGE_DEFAULTS: Record<Language, Config> = {
     presets: [],
     title: 'TechCrema',
     timezone: 'UTC',
-    sources: ['hackernews', 'lobsters', 'devto', 'huggingface', 'github'],
+    sources: ['hackernews', 'devto', 'huggingface', 'github'],
     topics: {},
     mute: { keywords: [], domains: [] },
     official: { feeds: [], releases: [] },
@@ -63,7 +64,7 @@ const LANGUAGE_DEFAULTS: Record<Language, Config> = {
     presets: [],
     title: 'TechCrema',
     timezone: 'Asia/Tokyo',
-    sources: ['hatena', 'zenn', 'qiita', 'slides', 'hackernews', 'lobsters', 'devto', 'huggingface', 'github'],
+    sources: ['hatena', 'zenn', 'qiita', 'slides', 'hackernews', 'devto', 'huggingface', 'github'],
     topics: {},
     mute: { keywords: [], domains: [] },
     official: { feeds: [], releases: [] },
@@ -97,7 +98,9 @@ function parseLanguage(value: unknown): Language {
 }
 
 function parseSources(value: unknown): PlatformId[] {
-  const ids = list(value, 'sources').map((s) => s.toLowerCase());
+  const ids = list(value, 'sources')
+    .map((s) => s.toLowerCase())
+    .filter((s) => !RETIRED_SOURCES.has(s));
   for (const id of ids) {
     if (!(PLATFORM_IDS as readonly string[]).includes(id)) {
       throw new ConfigError(`sources: unknown source "${id}" (available: ${PLATFORM_IDS.join(', ')})`);

@@ -19,6 +19,11 @@ const MESSAGES = {
     'source.hatena': 'Hatena',
     slides: 'Slides',
     'voices.more': 'All {n} reactions on {source}',
+    'voice.whole': 'Whole comment by {author}',
+    'footer.about':
+      'Titles and links of popular stories, with short parts of public comments, gathered automatically for personal reading.',
+    'footer.owner': 'Run by the owner of {repo}.',
+    'footer.contact': 'To have something removed, open an issue',
     'source.official': 'Official',
     'release.major': 'Major',
     'release.minor': 'Minor',
@@ -83,6 +88,11 @@ const MESSAGES = {
     'source.hatena': 'はてブ',
     slides: 'スライド',
     'voices.more': '{source}の反応 {n}件をすべて見る',
+    'voice.whole': '{author} さんのコメント全文',
+    'footer.about':
+      '話題の記事のタイトル・リンクと、公開されているコメントの一部を、個人で読むために自動で集めたページです。',
+    'footer.owner': '運営は {repo} の持ち主が行っています。',
+    'footer.contact': '掲載内容の削除のご依頼は Issue へ',
     'source.official': '公式',
     'release.major': 'メジャー',
     'release.minor': 'マイナー',

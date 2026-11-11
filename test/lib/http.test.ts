@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchJson, fetchText, githubHeaders, politeGet, readLimited, userAgent } from '#src/lib/http.ts';
+import {
+  fetchJson,
+  fetchText,
+  githubHeaders,
+  ownRepository,
+  politeGet,
+  readLimited,
+  userAgent,
+} from '#src/lib/http.ts';
 
 const ok = (body: string, init: ResponseInit = {}) => new Response(body, { status: 200, ...init });
 
@@ -9,6 +17,14 @@ const nextHost = () => `https://host${++hostCount}.example`;
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe('ownRepository', () => {
+  it('is the repository running the job, when it looks like one', () => {
+    expect(ownRepository({ GITHUB_REPOSITORY: 'alice/my-feed' })).toBe('alice/my-feed');
+    expect(ownRepository({ GITHUB_REPOSITORY: 'not a repo' })).toBeUndefined();
+    expect(ownRepository({})).toBeUndefined();
+  });
 });
 
 describe('userAgent', () => {

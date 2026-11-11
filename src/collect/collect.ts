@@ -3,6 +3,7 @@ import { appendFile } from 'node:fs/promises';
 import type { Log } from '#src/cli.ts';
 import { type Config, loadConfig } from '#src/config/config.ts';
 import { localDate } from '#src/lib/dates.ts';
+import { ownRepository } from '#src/lib/http.ts';
 import { feedPath, loadScoreWindow, loadSeen, saveFeed, saveScoreSnapshot, saveSeen } from '#src/lib/store.ts';
 import { interestScorer, muteFilter } from '#src/ranking/matching.ts';
 import { mergeIntoStories } from '#src/ranking/merge.ts';
@@ -99,6 +100,7 @@ export async function collect(
     language: config.language,
     title: config.title,
     officialDays: config.layout.official_days,
+    repository: ownRepository(),
     sections: sections.map((s) => ({ ...s, stories: s.stories.map((story) => forPage(story, voices.get(story.key))) })),
     errors: fetched.errors,
   };

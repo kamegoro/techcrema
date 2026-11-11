@@ -83,8 +83,13 @@ export function makeFeed(over: Partial<Feed> = {}): Feed {
               count: 230,
               url: 'https://news.ycombinator.com/item?id=b',
               comments: [
-                { text: LONG_COMMENT, lang: 'en' },
-                { text: 'clap made the argument parsing painless for me.', lang: 'en' },
+                { text: LONG_COMMENT, lang: 'en', author: 'pat', url: 'https://news.ycombinator.com/item?id=b1' },
+                {
+                  text: 'clap made the argument parsing painless for me.',
+                  lang: 'en',
+                  author: 'sam',
+                  url: 'https://news.ycombinator.com/item?id=b2',
+                },
               ],
             },
           }),

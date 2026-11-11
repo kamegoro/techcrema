@@ -57,6 +57,16 @@ test.describe('Today page', () => {
     `);
   });
 
+  test('a big number is shortened the way the language of the page writes it', async ({ reader }) => {
+    const feed = makeFeed();
+    const appearance = feed.sections[1]?.stories[0]?.appearances[0];
+    if (appearance) appearance.score = 12345;
+    await reader.open(feed);
+    await expect(reader.story('Rust ownership explained').getByText('12.3K', { exact: true })).toBeVisible();
+    await reader.open({ ...feed, language: 'ja' });
+    await expect(reader.story('Rust ownership explained').getByText('1.2\u4e07', { exact: true })).toBeVisible();
+  });
+
   test('a release shows its type and how many other releases were folded in', async ({ reader }) => {
     await reader.open(makeFeed());
     await expect(reader.section('Official')).toMatchAriaSnapshot(`

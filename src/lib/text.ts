@@ -10,11 +10,16 @@ export function truncate(text: string, max: number): string {
 
 const NAMED_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
+const ENTITY = /&(#x[\da-f]+|#\d+|\w+);/gi;
+
 function decodeEntity(entity: string, name: string): string {
   if (!name.startsWith('#')) return NAMED_ENTITIES[name.toLowerCase()] ?? entity;
   const code = name[1]?.toLowerCase() === 'x' ? Number.parseInt(name.slice(2), 16) : Number(name.slice(1));
   return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : entity;
 }
+
+/** "&#8211;" → "–", "&amp;" → "&"; unknown references stay as they are */
+export const decodeEntities = (text: string) => text.replace(ENTITY, decodeEntity);
 
 /** Walks the HTML one character at a time, so no tag survives, not even one left open at the end */
 function stripTags(html: string): string {
@@ -37,7 +42,8 @@ function stripTags(html: string): string {
 /** HTML as HN serves comments, as plain text: paragraphs become line breaks */
 export function htmlToText(html: string): string {
   return stripTags(html)
-    .replace(/&(#x[\da-f]+|#\d+|\w+);/gi, decodeEntity)
+
+    .replace(ENTITY, decodeEntity)
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s*\n+/g, '\n')
     .trim();

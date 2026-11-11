@@ -10,7 +10,7 @@ A complete workflow with every common option is in [examples/workflow.yml](../ex
 | `presets` | Comma-separated ready-made interests (see [Presets](#presets)) | none |
 | `topics` | Your own interests, as YAML (see [Topics](#topics)) | none |
 | `sources` | Comma-separated ids from [Sources](#sources) | depends on `language` |
-| `official` | One per line: an RSS/Atom URL (optionally `Name https://…`), or `owner/repo` for GitHub releases | none |
+| `official` | One per line: a blog's address or its feed (RSS, Atom or JSON Feed; optionally `Name https://…`), or `owner/repo` for GitHub releases. Given a blog's page, TechCrema follows the feed the page links to | none |
 | `mute-keywords` | Comma-separated keywords to never show | none |
 | `mute-domains` | Comma-separated domains to never show (subdomains included) | none |
 | `title` | Page title | `TechCrema` |
@@ -103,6 +103,6 @@ Lobsters was a source until v1.2.7. It asks bots other than search engines not t
 | [Zenn](https://zenn.dev) | `zenn` | likes | `ja` |
 | Slides on [Speaker Deck](https://speakerdeck.com) and [Docswell](https://www.docswell.com), through Hatena Bookmark | `slides` | bookmarks | `ja` |
 | [Qiita](https://qiita.com) | `qiita` | likes | `ja` |
-| Any RSS/Atom feed or GitHub releases | via `official` | none (always shown when new) | |
+| Any blog (RSS, Atom or JSON Feed) or GitHub releases | via `official` | none (always shown when new) | |
 
 Every source uses an official API, a public JSON endpoint or RSS. Want another one? See [CONTRIBUTING.md](../CONTRIBUTING.md#adding-a-source).

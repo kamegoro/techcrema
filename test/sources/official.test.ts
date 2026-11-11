@@ -14,6 +14,24 @@ beforeEach(() => {
 });
 
 describe('fetchOfficialFeed', () => {
+  it("accepts a blog's own address and follows the feed its page announces", async () => {
+    vi.mocked(fetchText).mockImplementation(async (url: string) =>
+      url === 'https://blog.example.com/'
+        ? '<!doctype html><html><head><link rel="alternate" type="application/rss+xml" href="/feed"></head></html>'
+        : rss('Example Blog'),
+    );
+    const [item] = await fetchOfficialFeed(undefined, 'https://blog.example.com/');
+    expect(item).toMatchObject({ publisher: 'Example Blog', url: 'https://blog.example.com/post' });
+    expect(fetchText).toHaveBeenCalledWith('https://blog.example.com/feed');
+  });
+
+  it('explains what to do when a page has no feed', async () => {
+    vi.mocked(fetchText).mockResolvedValue('<!doctype html><html><head></head></html>');
+    await expect(fetchOfficialFeed(undefined, 'https://kotlin.example.com/')).rejects.toThrow(
+      /no feed link.*RSS or Atom feed/,
+    );
+  });
+
   it('uses the configured name as the publisher', async () => {
     vi.mocked(fetchText).mockResolvedValue(rss('Ignored'));
     expect(await fetchOfficialFeed('Node.js', 'https://blog.example.com/feed')).toEqual([

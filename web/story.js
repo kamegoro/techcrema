@@ -1,6 +1,6 @@
 // One story: its title (and translation), what people said, where it is popular, and its buttons.
-import { formatCount, h, icon, safeUrl } from './dom.js';
-import { language, t, timeAgo } from './i18n.js';
+import { h, icon, safeUrl } from './dom.js';
+import { formatCount, language, t, timeAgo } from './i18n.js';
 import { translationOf } from './translate.js';
 
 const SITE_NAMES = {

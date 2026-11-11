@@ -42,12 +42,6 @@ export function safeUrl(url) {
   }
 }
 
-export function formatCount(n) {
-  if (n >= 10000) return `${(n / 1000).toFixed(0)}k`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
-}
-
 export function emptyState(title, text) {
   return h('div', { class: 'empty' }, h('p', { class: 'empty-title' }, title), h('p', {}, text));
 }

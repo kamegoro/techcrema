@@ -158,6 +158,10 @@ function initialLanguage() {
 /** The language the page is shown in ('en' or 'ja') */
 export const language = () => lang;
 
+/** 1234 → "1.2K" on an English page, 12345 → "1.2万" on a Japanese one */
+export const formatCount = (n) =>
+  new Intl.NumberFormat(lang, { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+
 export function setLanguage(next) {
   if (!(next in MESSAGES) || next === lang) return false;
   lang = next;

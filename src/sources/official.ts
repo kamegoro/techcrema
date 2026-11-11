@@ -1,16 +1,26 @@
 // Sources with no popularity signal, shown whenever they have something new: blog feeds and GitHub releases.
-import { parseFeed, parseFeedTitle } from '#src/lib/feed-parser.ts';
+import { discoverFeed, isHtmlPage, parseFeed, parseFeedTitle } from '#src/lib/feed-parser.ts';
 import { fetchJson, fetchText, githubHeaders } from '#src/lib/http.ts';
 import { truncate } from '#src/lib/text.ts';
 import { domainOf } from '#src/lib/url.ts';
 import type { RawItem, ReleaseKind } from '#src/types.ts';
 import { repoName } from './github.ts';
 
+/** A blog's own address works too: its page names its feed */
+async function fetchFeedBody(url: string): Promise<{ body: string; feedUrl: string }> {
+  const body = await fetchText(url);
+  if (!isHtmlPage(body)) return { body, feedUrl: url };
+  const feedUrl = discoverFeed(body, url);
+  if (!feedUrl)
+    throw new Error(`${url} is a web page with no feed link in it; use the address of its RSS or Atom feed`);
+  return { body: await fetchText(feedUrl), feedUrl };
+}
+
 /** Without a `name`, the feed's own title (or its host) names the publisher */
 export async function fetchOfficialFeed(name: string | undefined, url: string): Promise<RawItem[]> {
-  const xml = await fetchText(url);
-  const publisher = name || truncate(parseFeedTitle(xml), 40) || domainOf(url);
-  return parseFeed(xml).map((e) => ({
+  const { body, feedUrl } = await fetchFeedBody(url);
+  const publisher = name || truncate(parseFeedTitle(body), 40) || domainOf(url);
+  return parseFeed(body, feedUrl).map((e) => ({
     source: 'official',
     title: e.title,
     url: e.link,

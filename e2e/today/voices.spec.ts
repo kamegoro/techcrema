@@ -17,14 +17,14 @@ test.describe('What people said', () => {
         - button "${SHORT_COMMENT}" [expanded=false]
         - link "Whole comment by sam":
           - /url: https://news.ycombinator.com/item?id=b2
-        - link "All 230 reactions on HN":
+        - link "All 230 comments on HN":
           - /url: https://news.ycombinator.com/item?id=b
     `);
   });
 
   test('a story nobody talked about shows no comments', async ({ reader }) => {
     await reader.open(makeFeed());
-    await expect(reader.story('Rust ownership explained').getByRole('link', { name: /reactions on/ })).toHaveCount(0);
+    await expect(reader.story('Rust ownership explained').getByRole('link', { name: /comments on/i })).toHaveCount(0);
   });
 
   test('tapping a comment opens it to its full length, and tapping again closes it', async ({ reader }) => {
@@ -34,6 +34,14 @@ test.describe('What people said', () => {
     await reader.expectCommentOpen(STORY, 'clap made', false);
     await reader.tapComment(STORY, 'I have shipped');
     await reader.expectCommentOpen(STORY, 'I have shipped', false);
+  });
+
+  test('Hatena counts the people who bookmarked, not comments, and says so', async ({ reader }) => {
+    const feed = makeFeed({ language: 'ja' });
+    const voices = feed.sections[1]?.stories[1]?.voices;
+    if (voices) voices.source = 'hatena';
+    await reader.open(feed);
+    await expect(reader.story(STORY).getByRole('link', { name: /230 users/ })).toBeVisible();
   });
 
   test('reading what people said counts as reading the story', async ({ reader }) => {

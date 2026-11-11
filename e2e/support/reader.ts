@@ -214,7 +214,7 @@ export class Reader {
   async openAllReactions(title: string) {
     await step(`Open everything people said about "${title}"`, async () => {
       const popup = this.page.waitForEvent('popup');
-      await ui.link(this.story(title), /^All \d+ reactions on /).click();
+      await ui.link(this.story(title), /^All \d+ comments on |^Comments on Hatena/).click();
       await (await popup).close();
     });
   }

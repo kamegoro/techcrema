@@ -78,7 +78,7 @@ await pause(900);
 // 2. Read what people said: open a comment to its full length
 const discussed = topic
   .getByRole('article')
-  .filter({ has: page.getByRole('link', { name: /reactions on/ }) })
+  .filter({ has: page.getByRole('link', { name: /comments on/ }) })
   .first();
 await scrollBy(-1800, 900);
 await pause(400);

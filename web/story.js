@@ -17,6 +17,8 @@ const SITE_NAMES = {
 /** Sites whose name is translated; the others are proper names */
 const TRANSLATED_SITE_NAMES = new Set(['hatena']);
 
+const VOICES_LINK_KEYS = new Set(['hackernews', 'hatena']);
+
 const siteName = (site) => (TRANSLATED_SITE_NAMES.has(site) ? t(`source.${site}`) : (SITE_NAMES[site] ?? site));
 
 /**
@@ -128,7 +130,11 @@ export function createStoryView(on) {
           translate: 'no',
           onclick: () => on.read(story),
         },
-        t('voices.more', { source: siteName(v.source), n: formatCount(v.count) }),
+        // Each site counts in its own unit: HN its comments, Hatena the people who bookmarked (most leave no comment)
+        t(VOICES_LINK_KEYS.has(v.source) ? `voices.more.${v.source}` : 'voices.more', {
+          source: siteName(v.source),
+          n: formatCount(v.count),
+        }),
       ),
     );
   }

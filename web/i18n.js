@@ -19,6 +19,8 @@ const MESSAGES = {
     'source.hatena': 'Hatena',
     slides: 'Slides',
     'voices.more': 'All {n} reactions on {source}',
+    'voices.more.hackernews': 'All {n} comments on HN',
+    'voices.more.hatena': 'Comments on Hatena Bookmark ({n} users)',
     'voice.whole': 'Whole comment by {author}',
     'footer.about':
       'Titles and links of popular stories, with short parts of public comments, gathered automatically for personal reading.',
@@ -88,6 +90,8 @@ const MESSAGES = {
     'source.hatena': 'はてブ',
     slides: 'スライド',
     'voices.more': '{source}の反応 {n}件をすべて見る',
+    'voices.more.hackernews': 'HNのコメント {n}件をすべて見る',
+    'voices.more.hatena': 'はてブのコメントを見る（{n} users）',
     'voice.whole': '{author} さんのコメント全文',
     'footer.about':
       '話題の記事のタイトル・リンクと、公開されているコメントの一部を、個人で読むために自動で集めたページです。',

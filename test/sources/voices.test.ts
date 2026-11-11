@@ -170,7 +170,7 @@ describe('findVoices from Hatena Bookmark', () => {
     );
     const voices = await findVoices(story([]), { hatena: true });
     expect(voices?.comments[0]?.text).toBe(`${REASONED} 99`);
-    const starRequests = json.mock.calls.map(([url]) => url).filter((url) => url.startsWith('https://s.hatena.com'));
+    const starRequests = json.mock.calls.map(([url]) => url).filter((url) => new URL(url).host === 's.hatena.com');
     expect(starRequests.map((url) => new URL(url).searchParams.getAll('uri').length)).toEqual([50, 50]);
   });
 

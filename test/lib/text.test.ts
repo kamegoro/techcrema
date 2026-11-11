@@ -16,6 +16,10 @@ describe('htmlToText', () => {
     );
   });
 
+  it('drops a tag left open at the end', () => {
+    expect(htmlToText('Read this<a href="https://x.dev')).toBe('Read this');
+  });
+
   it('decodes named and numeric character references', () => {
     expect(htmlToText('It&#x27;s &quot;fine&quot; &amp; 5 &gt; 3 &#169;')).toBe('It\'s "fine" & 5 > 3 ©');
   });

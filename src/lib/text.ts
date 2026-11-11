@@ -16,11 +16,27 @@ function decodeEntity(entity: string, name: string): string {
   return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : entity;
 }
 
+/** Walks the HTML one character at a time, so no tag survives, not even one left open at the end */
+function stripTags(html: string): string {
+  let text = '';
+  let tag: string | null = null;
+  for (const ch of html) {
+    if (tag === null) {
+      if (ch === '<') tag = '';
+      else text += ch;
+    } else if (ch === '>') {
+      if (tag.toLowerCase() === 'p') text += '\n';
+      tag = null;
+    } else {
+      tag += ch;
+    }
+  }
+  return text;
+}
+
 /** HTML as HN serves comments, as plain text: paragraphs become line breaks */
 export function htmlToText(html: string): string {
-  return html
-    .replace(/<p>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
+  return stripTags(html)
     .replace(/&(#x[\da-f]+|#\d+|\w+);/gi, decodeEntity)
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s*\n+/g, '\n')

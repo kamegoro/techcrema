@@ -26,7 +26,7 @@
     "format": "biome check --write ."
   },
   "dependencies": {
-    "fast-xml-parser": "^5.12.0",
+    "fast-xml-parser": "^5.12.1",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
